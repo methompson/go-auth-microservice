@@ -60,10 +60,6 @@ func setupServer() *gin.Engine {
 
 	r := gin.Default()
 	r.GET("/", func(c *gin.Context) {
-		fmt.Println("Arrived at '/'")
-
-		QueryUsers(client)
-
 		c.JSON(200, gin.H{
 			"message": "Hello!",
 		})
