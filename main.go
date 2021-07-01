@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -59,23 +60,46 @@ func setupServer() *gin.Engine {
 	client := setupMongoClient()
 
 	r := gin.Default()
-	r.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "Hello!",
-		})
+	r.GET("/", func(ctx *gin.Context) {
+		// ctx.JSON(200, gin.H{
+		// 	"message": "Hello!",
+		// })
+		ctx.Data(200, "text/html; charset=utf-8", make([]byte, 0))
 	})
 
-	r.GET("/nonce", func(c *gin.Context) {
-		nonce, err := GenerateNonce(client)
+	r.GET("/nonce", func(ctx *gin.Context) {
+		nonce, err := GenerateNonce(ctx, client)
 
 		if err != nil {
-			c.JSON(500, gin.H{})
+			ctx.JSON(500, gin.H{})
 			return
 		}
 
-		c.JSON(200, gin.H{
+		ctx.JSON(200, gin.H{
 			"nonce": nonce,
 		})
+	})
+
+	r.POST("/login", func(ctx *gin.Context) {
+		var body LoginBody
+
+		if bindJsonErr := ctx.ShouldBindJSON(&body); bindJsonErr != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": bindJsonErr.Error()})
+			return
+		}
+
+		hashIsGood, hashIsGoodErr := CheckNonceHash(body, ctx, client)
+
+		if hashIsGoodErr != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": hashIsGoodErr.Error()})
+			return
+		}
+
+		if !hashIsGood {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Nonce"})
+		}
+
+		ctx.JSON(200, gin.H{})
 	})
 
 	return r
