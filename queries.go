@@ -117,6 +117,8 @@ func CheckNonceHash(body LoginBody, ctx *gin.Context, client *mongo.Client) (boo
 
 	_, nonceDocErr := GetNonceFromDb(hashedNonce, remoteAddress, client)
 
+	// TODO immediately write that the nonce has been used.
+
 	if nonceDocErr != nil {
 		return false, nonceDocErr
 	}
