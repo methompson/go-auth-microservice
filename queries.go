@@ -5,17 +5,153 @@ import (
 	"crypto"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/gin-gonic/gin"
 )
 
 const FIVE_MINUTES = 60 * 5
+
+func InitDatabase(dbName string, client *mongo.Client) error {
+	userCreationErr := InitUserDatabase(dbName, client)
+
+	if userCreationErr != nil {
+		return userCreationErr
+	}
+
+	nonceCreationErr := InitNonceDatabase(dbName, client)
+
+	if nonceCreationErr != nil {
+		return nonceCreationErr
+	}
+
+	return nil
+}
+
+func InitUserDatabase(dbName string, client *mongo.Client) error {
+	db := client.Database(dbName)
+
+	jsonSchema := bson.M{
+		"bsonType": "object",
+		"required": []string{"username", "passwordHash", "email", "enabled"},
+		"properties": bson.M{
+			"username": bson.M{
+				"bsonType":    "string",
+				"description": "username is required and must be a string",
+			},
+			"passwordHash": bson.M{
+				"bsonType":    "string",
+				"description": "passwordHash is required and must be a string",
+			},
+			"email": bson.M{
+				"bsonType":    "string",
+				"description": "email is required and must be a string",
+			},
+			"enabled": bson.M{
+				"bsonType":    "bool",
+				"description": "enabled is required and must be a boolean",
+			},
+		},
+	}
+
+	colOpts := options.CreateCollection().SetValidator(bson.M{"$jsonSchema": jsonSchema})
+
+	createCollectionErr := db.CreateCollection(context.TODO(), "users", colOpts)
+
+	if createCollectionErr != nil {
+		return createCollectionErr
+	}
+
+	models := []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "username", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			Keys:    bson.D{{Key: "email", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+	}
+
+	opts := options.CreateIndexes().SetMaxTime(2 * time.Second)
+
+	collection, _, _ := GetCollection(dbName, "users", client)
+	names, setIndexErr := collection.Indexes().CreateMany(context.TODO(), models, opts)
+
+	if setIndexErr != nil {
+		return setIndexErr
+	}
+
+	fmt.Printf("created indexes %v\n", names)
+
+	return nil
+}
+
+func InitNonceDatabase(dbName string, client *mongo.Client) error {
+	db := client.Database(dbName)
+
+	jsonSchema := bson.M{
+		"bsonType": "object",
+		"required": []string{"hash", "time", "remoteAddress"},
+		"properties": bson.M{
+			"hash": bson.M{
+				"bsonType":    "string",
+				"description": "hash is required and must be a string",
+			},
+			"time": bson.M{
+				"bsonType":    "long",
+				"description": "time is required and must be a 64-bit integer (aka a long)",
+			},
+			"remoteAddress": bson.M{
+				"bsonType":    "string",
+				"description": "remoteAddress is required and must be a string",
+			},
+		},
+	}
+
+	colOpts := options.CreateCollection().SetValidator(bson.M{"$jsonSchema": jsonSchema})
+
+	createCollectionErr := db.CreateCollection(context.TODO(), "authNonces", colOpts)
+
+	if createCollectionErr != nil {
+		return createCollectionErr
+	}
+
+	models := []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "hash", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			Keys:    bson.D{{Key: "time", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			Keys:    bson.D{{Key: "remoteAddress", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+	}
+
+	opts := options.CreateIndexes().SetMaxTime(2 * time.Second)
+
+	collection, _, _ := GetCollection(dbName, "authNonces", client)
+	names, setIndexErr := collection.Indexes().CreateMany(context.TODO(), models, opts)
+
+	if setIndexErr != nil {
+		return setIndexErr
+	}
+
+	fmt.Printf("created indexes %v\n", names)
+
+	return nil
+}
 
 // Test function
 func QueryUsers(client *mongo.Client) {
@@ -89,6 +225,11 @@ func GenerateNonce(ctx *gin.Context, client *mongo.Client) (string, error) {
 	return nonce, nil
 }
 
+func hashString(str string) string {
+	strBytes := []byte(str)
+	return hashBytes(strBytes)
+}
+
 // Takes an array of bytes and calculates the sha3-512 hash of the bytes array
 func hashBytes(bytes []byte) string {
 	// Hash the value using sha3-512
@@ -103,12 +244,12 @@ func hashBytes(bytes []byte) string {
 // This function will accept the login body data, the request context and the mongodb
 // client. It calculates the hash from the base 64 encoded data, then looks for the
 // hash in the authNonces Document collection.
-func CheckNonceHash(body LoginBody, ctx *gin.Context, client *mongo.Client) (bool, error) {
+func CheckNonceHash(body LoginBody, ctx *gin.Context, client *mongo.Client) error {
 	bytes, decodeStringErr := base64.URLEncoding.DecodeString(body.Nonce)
 	if decodeStringErr != nil {
 		msg := fmt.Sprintln("Invalid Base64 value: ", decodeStringErr)
 		fmt.Println(msg)
-		return false, decodeStringErr
+		return decodeStringErr
 	}
 
 	hashedNonce := hashBytes(bytes)
@@ -120,17 +261,17 @@ func CheckNonceHash(body LoginBody, ctx *gin.Context, client *mongo.Client) (boo
 	// TODO immediately write that the nonce has been used.
 
 	if nonceDocErr != nil {
-		return false, nonceDocErr
+		return nonceDocErr
 	}
 
-	return true, nil
+	return nil
 }
 
 func GetNonceFromDb(hashedNonce string, remoteAddress string, client *mongo.Client) (NonceDocument, error) {
 	// We only accept nonces that were generated in the past 5 minutes.
 	fiveMinutesAgo := time.Now().Unix() - FIVE_MINUTES
 
-	collection, backCtx, cancel := GetCollection("auth", "authNonces", client)
+	collection, backCtx, cancel := GetCollection(AUTH_DB_NAME, "authNonces", client)
 	defer cancel()
 
 	var result NonceDocument
@@ -169,14 +310,35 @@ func GenerateRandomString(bits int) (string, []byte) {
 	return b64, byt
 }
 
-func GetUserByUsername(username string, client *mongo.Client) {
+func GetUserByUsername(username string, password string, client *mongo.Client) {
+	passwordHash := hashString(password)
+
+	fmt.Println(passwordHash)
+
 	collection, backCtx, cancel := GetCollection("auth", "users", client)
 	defer cancel()
 
 	var result bson.M
-	mdbErr := collection.FindOne(backCtx, bson.D{}).Decode(&result)
+	mdbErr := collection.FindOne(backCtx, bson.D{
+		{Key: "username", Value: username},
+		{Key: "passwordHash", Value: passwordHash},
+	}).Decode(&result)
 
+	// If no document exists, we'll get an error
 	if mdbErr != nil {
 		fmt.Println("There was an error")
 	}
+}
+
+// Returns a JWT on successful user login
+func LogUserIn(body LoginBody, ctx *gin.Context, client *mongo.Client) (string, error) {
+	checkHashErr := CheckNonceHash(body, ctx, client)
+
+	if checkHashErr != nil {
+		return "", errors.New("invalid nonce")
+	}
+
+	GetUserByUsername(body.Username, body.Password, client)
+
+	return "", nil
 }

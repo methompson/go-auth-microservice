@@ -2,6 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -53,11 +57,59 @@ func loadAndCheckEnvVariables() {
 		}
 
 		fmt.Println("New UUID: ", u2)
+		os.Setenv("HASH_SECRET", u2.String())
 	}
+
+	openJwtKeys()
+}
+
+func openJwtKeys() (*rsa.PrivateKey, *rsa.PublicKey, error) {
+	var privateKey *rsa.PrivateKey
+	var publicKey *rsa.PublicKey
+
+	privateKeyBytes, privateKeyBytesErr := os.ReadFile("jwtRS256.key")
+	if privateKeyBytesErr != nil {
+		return privateKey, publicKey, errors.New("private key does not exist or cannot be read. Run gen-rsa-key.sh to generate a key pair")
+	}
+
+	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
+	if privateKeyBlock == nil {
+		fmt.Println("failed to decode private key")
+		return privateKey, publicKey, errors.New("failed to decode private key")
+	}
+
+	privateKey, privateKeyErr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
+	if privateKeyErr != nil {
+		fmt.Println("failed to parse private key PEM block", privateKeyErr)
+		return privateKey, publicKey, errors.New("failed to parse private key PEM block")
+	}
+
+	publicKeyBytes, publicKeyBytesErr := os.ReadFile("jwtRS256.key.pub")
+	if publicKeyBytesErr != nil {
+		return privateKey, publicKey, errors.New("public key does not exist or cannot be read. Run gen-rsa-key.sh to generate a key pair")
+	}
+
+	publicKeyBlock, _ := pem.Decode(publicKeyBytes)
+	if publicKeyBlock == nil {
+		fmt.Println("failed to decode public key")
+		return privateKey, publicKey, errors.New("failed to decode public key")
+	}
+
+	publicKeyInt, publicKeyIntErr := x509.ParsePKIXPublicKey(publicKeyBlock.Bytes)
+	if publicKeyIntErr != nil {
+		fmt.Println("failed to parse public key PEM block", publicKeyIntErr)
+		return privateKey, publicKey, errors.New("failed to parse public key PEM block")
+	}
+
+	publicKey, _ = publicKeyInt.(*rsa.PublicKey)
+
+	return privateKey, publicKey, nil
 }
 
 func setupServer() *gin.Engine {
 	client := setupMongoClient()
+
+	InitDatabase(AUTH_DB_NAME, client)
 
 	r := gin.Default()
 	r.GET("/", func(ctx *gin.Context) {
@@ -88,16 +140,16 @@ func setupServer() *gin.Engine {
 			return
 		}
 
-		hashIsGood, hashIsGoodErr := CheckNonceHash(body, ctx, client)
+		_, loginError := LogUserIn(body, ctx, client)
 
-		if hashIsGoodErr != nil {
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": hashIsGoodErr.Error()})
+		if loginError != nil {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": loginError.Error()})
 			return
 		}
 
-		if !hashIsGood {
-			ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Nonce"})
-		}
+		// if !hashIsGood {
+		// 	ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Nonce"})
+		// }
 
 		ctx.JSON(200, gin.H{})
 	})
