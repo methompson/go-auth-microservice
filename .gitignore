@@ -24,6 +24,8 @@ fileRenamerCli
 testFiles
 .DS_Store
 
-#RSA / JWT Key Files
-jwtRS256.key
-jwtRS256.key.pub
+# RSA / JWT Key Files
+keys/
+
+# IDE stuff
+.vscode

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gofrs/uuid"
 	"github.com/joho/godotenv"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -33,89 +32,125 @@ func loadAndCheckEnvVariables() {
 		log.Fatal("Error loading .env file: ", err)
 	}
 
-	mongoDbUrl := os.Getenv("MONGO_DB_URL")
+	mongoDbUrl := os.Getenv(MONGO_DB_URL)
 	if len(mongoDbUrl) == 0 {
 		log.Fatal("MONGO_DB_URL environment variable is required")
 	}
 
-	mongoDbUser := os.Getenv("MONGO_DB_USERNAME")
+	mongoDbUser := os.Getenv(MONGO_DB_USERNAME)
 	if len(mongoDbUser) == 0 {
 		log.Fatal("MONGO_DB_USERNAME environment variable is required")
 	}
 
-	mongoDbPass := os.Getenv("MONGO_DB_PASSWORD")
+	mongoDbPass := os.Getenv(MONGO_DB_PASSWORD)
 	if len(mongoDbPass) == 0 {
 		log.Fatal("MONGO_DB_PASSWORD environment variable is required")
 	}
 
-	hashSecret := os.Getenv("HASH_SECRET")
+	openRSAErr := openAndSetRSAKeys()
 
-	if len(hashSecret) == 0 {
-		u2, err := uuid.NewV4()
-		if err != nil {
-			log.Fatalf("failed to generate UUID: %v", err)
-		}
-
-		fmt.Println("New UUID: ", u2)
-		os.Setenv("HASH_SECRET", u2.String())
+	if openRSAErr != nil {
+		msg := fmt.Sprintln("error opening RSA keys.", openRSAErr)
+		log.Fatal(msg)
 	}
 
-	openJwtKeys()
+	checkRSAErr := checkRSAKeys()
+	if checkRSAErr != nil {
+		msg := fmt.Sprintln("cannot read RSA keys", checkRSAErr)
+		log.Fatal(msg)
+	}
 }
 
-func openJwtKeys() (*rsa.PrivateKey, *rsa.PublicKey, error) {
-	var privateKey *rsa.PrivateKey
-	var publicKey *rsa.PublicKey
-
-	privateKeyBytes, privateKeyBytesErr := os.ReadFile("jwtRS256.key")
+func openAndSetRSAKeys() error {
+	privateKeyBytes, privateKeyBytesErr := os.ReadFile("./keys/jwtRS256.key")
 	if privateKeyBytesErr != nil {
-		return privateKey, publicKey, errors.New("private key does not exist or cannot be read. Run gen-rsa-key.sh to generate a key pair")
+		return errors.New("private key does not exist or cannot be read. Run gen-rsa-key.sh to generate a key pair")
 	}
+
+	publicKeyBytes, publicKeyBytesErr := os.ReadFile("./keys/jwtRS256.key.pub")
+	if publicKeyBytesErr != nil {
+		return errors.New("public key does not exist or cannot be read. Run gen-rsa-key.sh to generate a key pair")
+	}
+
+	os.Setenv(RSA_PRIVATE_KEY, string(privateKeyBytes))
+	os.Setenv(RSA_PUBLIC_KEY, string(publicKeyBytes))
+
+	return nil
+}
+
+func GetRSAPrivateKey() (*rsa.PrivateKey, error) {
+	var privateKey *rsa.PrivateKey
+
+	privateKeyStr := os.Getenv(RSA_PRIVATE_KEY)
+
+	privateKeyBytes := []byte(privateKeyStr)
 
 	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
 	if privateKeyBlock == nil {
 		fmt.Println("failed to decode private key")
-		return privateKey, publicKey, errors.New("failed to decode private key")
+		return privateKey, errors.New("failed to decode private key")
 	}
 
 	privateKey, privateKeyErr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if privateKeyErr != nil {
 		fmt.Println("failed to parse private key PEM block", privateKeyErr)
-		return privateKey, publicKey, errors.New("failed to parse private key PEM block")
+		return privateKey, errors.New("failed to parse private key PEM block")
 	}
 
-	publicKeyBytes, publicKeyBytesErr := os.ReadFile("jwtRS256.key.pub")
-	if publicKeyBytesErr != nil {
-		return privateKey, publicKey, errors.New("public key does not exist or cannot be read. Run gen-rsa-key.sh to generate a key pair")
-	}
+	return privateKey, nil
+}
+
+func GetRSAPublicKey() (*rsa.PublicKey, error) {
+	var publicKey *rsa.PublicKey
+
+	publicKeyStr := os.Getenv(RSA_PUBLIC_KEY)
+
+	publicKeyBytes := []byte(publicKeyStr)
 
 	publicKeyBlock, _ := pem.Decode(publicKeyBytes)
 	if publicKeyBlock == nil {
 		fmt.Println("failed to decode public key")
-		return privateKey, publicKey, errors.New("failed to decode public key")
+		return publicKey, errors.New("failed to decode public key")
 	}
 
 	publicKeyInt, publicKeyIntErr := x509.ParsePKIXPublicKey(publicKeyBlock.Bytes)
 	if publicKeyIntErr != nil {
 		fmt.Println("failed to parse public key PEM block", publicKeyIntErr)
-		return privateKey, publicKey, errors.New("failed to parse public key PEM block")
+		return publicKey, errors.New("failed to parse public key PEM block")
 	}
 
 	publicKey, _ = publicKeyInt.(*rsa.PublicKey)
 
-	return privateKey, publicKey, nil
+	return publicKey, nil
+}
+
+func checkRSAKeys() error {
+	_, privateKeyError := GetRSAPrivateKey()
+
+	if privateKeyError != nil {
+		return privateKeyError
+	}
+
+	_, publicKeyError := GetRSAPublicKey()
+
+	if publicKeyError != nil {
+		return publicKeyError
+	}
+
+	return nil
 }
 
 func setupServer() *gin.Engine {
 	client := setupMongoClient()
 
-	InitDatabase(AUTH_DB_NAME, client)
+	initDbErr := InitDatabase(AUTH_DB_NAME, client)
+
+	if initDbErr != nil {
+		log.Fatal("Error Initializing Database", initDbErr)
+	}
 
 	r := gin.Default()
 	r.GET("/", func(ctx *gin.Context) {
-		// ctx.JSON(200, gin.H{
-		// 	"message": "Hello!",
-		// })
 		ctx.Data(200, "text/html; charset=utf-8", make([]byte, 0))
 	})
 
@@ -140,18 +175,22 @@ func setupServer() *gin.Engine {
 			return
 		}
 
-		_, loginError := LogUserIn(body, ctx, client)
+		token, loginError := LogUserIn(body, ctx, client)
 
 		if loginError != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": loginError.Error()})
 			return
 		}
 
-		// if !hashIsGood {
-		// 	ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Nonce"})
-		// }
+		ctx.JSON(200, gin.H{
+			"token": token,
+		})
+	})
 
-		ctx.JSON(200, gin.H{})
+	r.POST("/verify-token", func(ctx *gin.Context) {})
+
+	r.GET("/public-key", func(ctx *gin.Context) {
+		ctx.String(200, os.Getenv(RSA_PUBLIC_KEY))
 	})
 
 	return r

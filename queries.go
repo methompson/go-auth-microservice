@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -15,6 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 )
 
 const FIVE_MINUTES = 60 * 5
@@ -22,13 +24,16 @@ const FIVE_MINUTES = 60 * 5
 func InitDatabase(dbName string, client *mongo.Client) error {
 	userCreationErr := InitUserDatabase(dbName, client)
 
-	if userCreationErr != nil {
+	// We want to return an error only if it's not the "Collection already exists" error
+	// The collection will likely exist most times this app is run. We only want to
+	// return an error if there's a larger problem than the collection already existing
+	if userCreationErr != nil && !strings.Contains(userCreationErr.Error(), "Collection already exists") {
 		return userCreationErr
 	}
 
 	nonceCreationErr := InitNonceDatabase(dbName, client)
 
-	if nonceCreationErr != nil {
+	if nonceCreationErr != nil && !strings.Contains(nonceCreationErr.Error(), "Collection already exists") {
 		return nonceCreationErr
 	}
 
@@ -127,14 +132,6 @@ func InitNonceDatabase(dbName string, client *mongo.Client) error {
 	models := []mongo.IndexModel{
 		{
 			Keys:    bson.D{{Key: "hash", Value: 1}},
-			Options: options.Index().SetUnique(true),
-		},
-		{
-			Keys:    bson.D{{Key: "time", Value: 1}},
-			Options: options.Index().SetUnique(true),
-		},
-		{
-			Keys:    bson.D{{Key: "remoteAddress", Value: 1}},
 			Options: options.Index().SetUnique(true),
 		},
 	}
@@ -258,10 +255,15 @@ func CheckNonceHash(body LoginBody, ctx *gin.Context, client *mongo.Client) erro
 
 	_, nonceDocErr := GetNonceFromDb(hashedNonce, remoteAddress, client)
 
-	// TODO immediately write that the nonce has been used.
-
 	if nonceDocErr != nil {
 		return nonceDocErr
+	}
+
+	// TODO immediately write that the nonce has been used.
+	err := removeUsedNonce(hashedNonce, client)
+
+	if err != nil {
+		fmt.Println("Error Deleting Nonce: ", err)
 	}
 
 	return nil
@@ -289,6 +291,23 @@ func GetNonceFromDb(hashedNonce string, remoteAddress string, client *mongo.Clie
 	return result, nil
 }
 
+// Once a Nonce has been checked, it should be removed
+func removeUsedNonce(hashedNonce string, client *mongo.Client) error {
+	collection, backCtx, cancel := GetCollection("auth", "authNonces", client)
+	defer cancel()
+
+	_, mdbErr := collection.DeleteMany(backCtx, bson.D{
+		{Key: "hash", Value: hashedNonce},
+	})
+
+	if mdbErr != nil {
+		return mdbErr
+	}
+
+	// Return the nonce
+	return nil
+}
+
 // Generate a random string of n bits length. 64 bits is a good starting point for
 // generating a somewhat secure value. We return both a base 64 encoded string and
 // the actual bytes. The string is, eventually returned to the client and the bytes
@@ -310,7 +329,8 @@ func GenerateRandomString(bits int) (string, []byte) {
 	return b64, byt
 }
 
-func GetUserByUsername(username string, password string, client *mongo.Client) {
+// Returns a JWT
+func GetUserByUsername(username string, password string, client *mongo.Client) (string, error) {
 	passwordHash := hashString(password)
 
 	fmt.Println(passwordHash)
@@ -318,7 +338,7 @@ func GetUserByUsername(username string, password string, client *mongo.Client) {
 	collection, backCtx, cancel := GetCollection("auth", "users", client)
 	defer cancel()
 
-	var result bson.M
+	var result UserDocument
 	mdbErr := collection.FindOne(backCtx, bson.D{
 		{Key: "username", Value: username},
 		{Key: "passwordHash", Value: passwordHash},
@@ -326,8 +346,41 @@ func GetUserByUsername(username string, password string, client *mongo.Client) {
 
 	// If no document exists, we'll get an error
 	if mdbErr != nil {
-		fmt.Println("There was an error")
+		msg := fmt.Sprintln("error getting data from database: ", mdbErr)
+		return "", errors.New(msg)
 	}
+
+	type CustomClaims struct {
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		jwt.StandardClaims
+	}
+
+	claims := CustomClaims{
+		result.Username,
+		result.Email,
+		jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(time.Hour * 4).Unix(),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+
+	privateKey, privateKeyErr := GetRSAPrivateKey()
+
+	if privateKeyErr != nil {
+		msg := fmt.Sprintln("error getting private key ", privateKeyErr)
+		return "", errors.New(msg)
+	}
+
+	signedString, tokenStringErr := token.SignedString(privateKey)
+
+	if tokenStringErr != nil {
+		msg := fmt.Sprintln("error making JWT", tokenStringErr)
+		return "", errors.New(msg)
+	}
+
+	return signedString, nil
 }
 
 // Returns a JWT on successful user login
@@ -338,7 +391,5 @@ func LogUserIn(body LoginBody, ctx *gin.Context, client *mongo.Client) (string, 
 		return "", errors.New("invalid nonce")
 	}
 
-	GetUserByUsername(body.Username, body.Password, client)
-
-	return "", nil
+	return GetUserByUsername(body.Username, body.Password, client)
 }
