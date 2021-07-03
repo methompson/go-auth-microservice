@@ -330,7 +330,7 @@ func GenerateRandomString(bits int) (string, []byte) {
 }
 
 // Returns a JWT
-func GetUserByUsername(username string, password string, client *mongo.Client) (string, error) {
+func GetUserByUsername(username string, password string, client *mongo.Client) (UserDocument, error) {
 	passwordHash := hashString(password)
 
 	fmt.Println(passwordHash)
@@ -347,9 +347,13 @@ func GetUserByUsername(username string, password string, client *mongo.Client) (
 	// If no document exists, we'll get an error
 	if mdbErr != nil {
 		msg := fmt.Sprintln("error getting data from database: ", mdbErr)
-		return "", errors.New(msg)
+		return result, errors.New(msg)
 	}
 
+	return result, nil
+}
+
+func generateJWT(userDocument UserDocument) (string, error) {
 	type CustomClaims struct {
 		Username string `json:"username"`
 		Email    string `json:"email"`
@@ -357,8 +361,8 @@ func GetUserByUsername(username string, password string, client *mongo.Client) (
 	}
 
 	claims := CustomClaims{
-		result.Username,
-		result.Email,
+		userDocument.Username,
+		userDocument.Email,
 		jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(time.Hour * 4).Unix(),
 		},
@@ -391,5 +395,12 @@ func LogUserIn(body LoginBody, ctx *gin.Context, client *mongo.Client) (string, 
 		return "", errors.New("invalid nonce")
 	}
 
-	return GetUserByUsername(body.Username, body.Password, client)
+	userDoc, userDocErr := GetUserByUsername(body.Username, body.Password, client)
+
+	if userDocErr != nil {
+		errorMsg := fmt.Sprint("error retrieving user from database: ", userDocErr)
+		return "", errors.New(errorMsg)
+	}
+
+	return generateJWT(userDoc)
 }
