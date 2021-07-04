@@ -1,4 +1,4 @@
-package main
+package authServer
 
 const AUTH_DB_NAME = "auth"
 
