@@ -8,4 +8,5 @@ type AuthController interface {
 	LogUserIn(body LoginBody, ctx *gin.Context) (string, error)
 	GetNonceFromDb(hashedNonce string, remoteAddress string) (NonceDocument, error)
 	RemoveUsedNonce(hashedNonce string) error
+	RemoveOldNonces() error
 }

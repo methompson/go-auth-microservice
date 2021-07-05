@@ -2,9 +2,7 @@ package authServer
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
@@ -16,12 +14,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type MongoDbController struct {
+type MongoDbAuthController struct {
 	MongoClient *mongo.Client
 	dbName      string
 }
 
-func (mc MongoDbController) InitDatabase() error {
+func (mc MongoDbAuthController) InitDatabase() error {
 	userCreationErr := mc.initUserDatabase(mc.dbName)
 
 	// We want to return an error only if it's not the "Collection already exists" error
@@ -37,6 +35,12 @@ func (mc MongoDbController) InitDatabase() error {
 		return nonceCreationErr
 	}
 
+	removeOldNoncesErr := mc.RemoveOldNonces()
+
+	if removeOldNoncesErr != nil {
+		return removeOldNoncesErr
+	}
+
 	return nil
 }
 
@@ -47,7 +51,7 @@ func (mc MongoDbController) InitDatabase() error {
 // Fourth, the base64-encoded bit range is sent to the user.
 // When a user attempts to log in, this nonce is passed BACK to the server, where it can be decoded, hashed and
 // compared to hashes in the Nonce table.
-func (mc MongoDbController) GenerateNonce(ctx *gin.Context) (string, error) {
+func (mc MongoDbAuthController) GenerateNonce(ctx *gin.Context) (string, error) {
 	// Generate a random string and its source bytes
 	nonce, bytes := GenerateRandomString(64)
 	fmt.Println(nonce)
@@ -55,7 +59,7 @@ func (mc MongoDbController) GenerateNonce(ctx *gin.Context) (string, error) {
 	hash := hashBytes(bytes)
 
 	// Write the hash to the database
-	collection, backCtx, cancel := mc.GetCollection("authNonces")
+	collection, backCtx, cancel := mc.getCollection("authNonces")
 	defer cancel()
 
 	_, mdbErr := collection.InsertOne(backCtx, bson.D{
@@ -65,7 +69,7 @@ func (mc MongoDbController) GenerateNonce(ctx *gin.Context) (string, error) {
 	})
 
 	if mdbErr != nil {
-		return "", mdbErr
+		return "", NewDBError(mdbErr.Error())
 	}
 
 	// Return the nonce
@@ -73,24 +77,24 @@ func (mc MongoDbController) GenerateNonce(ctx *gin.Context) (string, error) {
 }
 
 // Returns a JWT on successful user login
-func (mc MongoDbController) LogUserIn(body LoginBody, ctx *gin.Context) (string, error) {
+func (mc MongoDbAuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, error) {
 	checkHashErr := CheckNonceHash(body, ctx, mc)
 
 	if checkHashErr != nil {
-		return "", errors.New("invalid nonce")
+		return "", NewNonceError("invalid nonce")
 	}
 
 	userDoc, userDocErr := mc.getUserByUsername(body.Username, body.Password)
 
 	if userDocErr != nil {
 		errorMsg := fmt.Sprint("error retrieving user from database: ", userDocErr)
-		return "", errors.New(errorMsg)
+		return "", NewDBError(errorMsg)
 	}
 
 	return generateJWT(userDoc)
 }
 
-func (mc MongoDbController) GetCollection(collectionName string) (*mongo.Collection, context.Context, context.CancelFunc) {
+func (mc MongoDbAuthController) getCollection(collectionName string) (*mongo.Collection, context.Context, context.CancelFunc) {
 	// Write the hash to the database
 	collection := mc.MongoClient.Database(mc.dbName).Collection(collectionName)
 	backCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -98,7 +102,7 @@ func (mc MongoDbController) GetCollection(collectionName string) (*mongo.Collect
 	return collection, backCtx, cancel
 }
 
-func (mc MongoDbController) initUserDatabase(dbName string) error {
+func (mc MongoDbAuthController) initUserDatabase(dbName string) error {
 	db := mc.MongoClient.Database(dbName)
 
 	jsonSchema := bson.M{
@@ -129,7 +133,7 @@ func (mc MongoDbController) initUserDatabase(dbName string) error {
 	createCollectionErr := db.CreateCollection(context.TODO(), "users", colOpts)
 
 	if createCollectionErr != nil {
-		return createCollectionErr
+		return NewDBError(createCollectionErr.Error())
 	}
 
 	models := []mongo.IndexModel{
@@ -145,11 +149,11 @@ func (mc MongoDbController) initUserDatabase(dbName string) error {
 
 	opts := options.CreateIndexes().SetMaxTime(2 * time.Second)
 
-	collection, _, _ := mc.GetCollection("users")
+	collection, _, _ := mc.getCollection("users")
 	names, setIndexErr := collection.Indexes().CreateMany(context.TODO(), models, opts)
 
 	if setIndexErr != nil {
-		return setIndexErr
+		return NewDBError(setIndexErr.Error())
 	}
 
 	fmt.Printf("created indexes %v\n", names)
@@ -157,7 +161,7 @@ func (mc MongoDbController) initUserDatabase(dbName string) error {
 	return nil
 }
 
-func (mc MongoDbController) initNonceDatabase(dbName string) error {
+func (mc MongoDbAuthController) initNonceDatabase(dbName string) error {
 	db := mc.MongoClient.Database(dbName)
 
 	jsonSchema := bson.M{
@@ -184,7 +188,7 @@ func (mc MongoDbController) initNonceDatabase(dbName string) error {
 	createCollectionErr := db.CreateCollection(context.TODO(), "authNonces", colOpts)
 
 	if createCollectionErr != nil {
-		return createCollectionErr
+		return NewDBError(createCollectionErr.Error())
 	}
 
 	models := []mongo.IndexModel{
@@ -196,11 +200,11 @@ func (mc MongoDbController) initNonceDatabase(dbName string) error {
 
 	opts := options.CreateIndexes().SetMaxTime(2 * time.Second)
 
-	collection, _, _ := mc.GetCollection("authNonces")
+	collection, _, _ := mc.getCollection("authNonces")
 	names, setIndexErr := collection.Indexes().CreateMany(context.TODO(), models, opts)
 
 	if setIndexErr != nil {
-		return setIndexErr
+		return NewDBError(setIndexErr.Error())
 	}
 
 	fmt.Printf("created indexes %v\n", names)
@@ -208,12 +212,12 @@ func (mc MongoDbController) initNonceDatabase(dbName string) error {
 	return nil
 }
 
-func (mc MongoDbController) getUserByUsername(username string, password string) (UserDocument, error) {
+func (mc MongoDbAuthController) getUserByUsername(username string, password string) (UserDocument, error) {
 	passwordHash := hashString(password)
 
 	fmt.Println(passwordHash)
 
-	collection, backCtx, cancel := mc.GetCollection("users")
+	collection, backCtx, cancel := mc.getCollection("users")
 	defer cancel()
 
 	var result UserDocument
@@ -225,15 +229,15 @@ func (mc MongoDbController) getUserByUsername(username string, password string) 
 	// If no document exists, we'll get an error
 	if mdbErr != nil {
 		msg := fmt.Sprintln("error getting data from database: ", mdbErr)
-		return result, errors.New(msg)
+		return result, NewDBError(msg)
 	}
 
 	return result, nil
 }
 
 // Once a Nonce has been checked, it should be removed
-func (mc MongoDbController) RemoveUsedNonce(hashedNonce string) error {
-	collection, backCtx, cancel := mc.GetCollection("authNonces")
+func (mc MongoDbAuthController) RemoveUsedNonce(hashedNonce string) error {
+	collection, backCtx, cancel := mc.getCollection("authNonces")
 	defer cancel()
 
 	_, mdbErr := collection.DeleteMany(backCtx, bson.D{
@@ -241,36 +245,51 @@ func (mc MongoDbController) RemoveUsedNonce(hashedNonce string) error {
 	})
 
 	if mdbErr != nil {
-		return mdbErr
+		return NewDBError(mdbErr.Error())
+		// return mdbErr
 	}
 
-	// Return the nonce
 	return nil
 }
 
-func (mc MongoDbController) GetNonceFromDb(hashedNonce string, remoteAddress string) (NonceDocument, error) {
-	// We only accept nonces that were generated in the past 5 minutes.
-	fiveMinutesAgo := time.Now().Unix() - FIVE_MINUTES
+func (mc MongoDbAuthController) RemoveOldNonces() error {
+	collection, backCtx, cancel := mc.getCollection("authNonces")
+	defer cancel()
 
-	collection, backCtx, cancel := mc.GetCollection("authNonces")
+	_, mdbErr := collection.DeleteMany(backCtx, bson.D{
+		{Key: "time", Value: bson.M{"$lt": GetExpirationTime()}},
+	})
+
+	if mdbErr != nil {
+		return NewDBError(mdbErr.Error())
+	}
+
+	return nil
+}
+
+// TODO allow only once Nonce per remote address
+func (mc MongoDbAuthController) GetNonceFromDb(hashedNonce string, remoteAddress string) (NonceDocument, error) {
+
+	collection, backCtx, cancel := mc.getCollection("authNonces")
 	defer cancel()
 
 	var result NonceDocument
 
+	// We only accept nonces that were generated after the expiration time
 	mdbErr := collection.FindOne(backCtx, bson.D{
 		{Key: "hash", Value: hashedNonce},
 		{Key: "remoteAddress", Value: remoteAddress},
-		{Key: "time", Value: bson.M{"$gt": fiveMinutesAgo}},
+		{Key: "time", Value: bson.M{"$gt": GetExpirationTime()}},
 	}).Decode(&result)
 
 	if mdbErr != nil {
-		return result, mdbErr
+		return result, NewDBError(mdbErr.Error())
 	}
 
 	return result, nil
 }
 
-func SetupMongoClient() *mongo.Client {
+func SetupMongoClient() (*mongo.Client, error) {
 	mongoDbUrl := os.Getenv("MONGO_DB_URL")
 	mongoDbUser := os.Getenv("MONGO_DB_USERNAME")
 	mongoDbPass := os.Getenv("MONGO_DB_PASSWORD")
@@ -282,17 +301,22 @@ func SetupMongoClient() *mongo.Client {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, clientOptions)
+	client, mdbErr := mongo.Connect(ctx, clientOptions)
 
-	if err != nil {
-		log.Fatal("Error connecting ", err)
+	if mdbErr != nil {
+		err := fmt.Sprint("Error connecting: ", mdbErr.Error())
+		return client, NewDBError(err)
 	}
 
-	return client
+	return client, nil
 }
 
-func MakeMongoDbController() MongoDbController {
-	client := SetupMongoClient()
+func MakeMongoDbAuthController() (MongoDbAuthController, error) {
+	client, clientErr := SetupMongoClient()
 
-	return MongoDbController{client, AUTH_DB_NAME}
+	if clientErr != nil {
+		return MongoDbAuthController{}, clientErr
+	}
+
+	return MongoDbAuthController{client, AUTH_DB_NAME}, nil
 }

@@ -4,7 +4,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -50,12 +49,12 @@ func LoadAndCheckEnvVariables() {
 func openAndSetRSAKeys() error {
 	privateKeyBytes, privateKeyBytesErr := os.ReadFile("./keys/jwtRS256.key")
 	if privateKeyBytesErr != nil {
-		return errors.New("private key does not exist or cannot be read. Run gen-rsa-key.sh to generate a key pair")
+		return NewCryptoKeyError("private key does not exist or cannot be read. Run gen-rsa-key.sh to generate a key pair")
 	}
 
 	publicKeyBytes, publicKeyBytesErr := os.ReadFile("./keys/jwtRS256.key.pub")
 	if publicKeyBytesErr != nil {
-		return errors.New("public key does not exist or cannot be read. Run gen-rsa-key.sh to generate a key pair")
+		return NewCryptoKeyError("public key does not exist or cannot be read. Run gen-rsa-key.sh to generate a key pair")
 	}
 
 	os.Setenv(RSA_PRIVATE_KEY, string(privateKeyBytes))
@@ -90,13 +89,13 @@ func GetRSAPrivateKey() (*rsa.PrivateKey, error) {
 	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
 	if privateKeyBlock == nil {
 		fmt.Println("failed to decode private key")
-		return privateKey, errors.New("failed to decode private key")
+		return privateKey, NewCryptoKeyError("failed to decode private key")
 	}
 
 	privateKey, privateKeyErr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if privateKeyErr != nil {
 		fmt.Println("failed to parse private key PEM block", privateKeyErr)
-		return privateKey, errors.New("failed to parse private key PEM block")
+		return privateKey, NewCryptoKeyError("failed to parse private key PEM block")
 	}
 
 	return privateKey, nil
@@ -112,13 +111,13 @@ func GetRSAPublicKey() (*rsa.PublicKey, error) {
 	publicKeyBlock, _ := pem.Decode(publicKeyBytes)
 	if publicKeyBlock == nil {
 		fmt.Println("failed to decode public key")
-		return publicKey, errors.New("failed to decode public key")
+		return publicKey, NewCryptoKeyError("failed to decode public key")
 	}
 
 	publicKeyInt, publicKeyIntErr := x509.ParsePKIXPublicKey(publicKeyBlock.Bytes)
 	if publicKeyIntErr != nil {
 		fmt.Println("failed to parse public key PEM block", publicKeyIntErr)
-		return publicKey, errors.New("failed to parse public key PEM block")
+		return publicKey, NewCryptoKeyError("failed to parse public key PEM block")
 	}
 
 	publicKey, _ = publicKeyInt.(*rsa.PublicKey)
