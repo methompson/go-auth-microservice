@@ -52,9 +52,16 @@ func (mc MongoDbAuthController) InitDatabase() error {
 // When a user attempts to log in, this nonce is passed BACK to the server, where it can be decoded, hashed and
 // compared to hashes in the Nonce table.
 func (mc MongoDbAuthController) GenerateNonce(ctx *gin.Context) (string, error) {
+	remoteAddress := ctx.Request.RemoteAddr
+
+	removeErr := mc.RemoveNonceByRemoteAddress(remoteAddress)
+
+	if removeErr != nil {
+		return "", removeErr
+	}
+
 	// Generate a random string and its source bytes
 	nonce, bytes := GenerateRandomString(64)
-	fmt.Println(nonce)
 
 	hash := hashBytes(bytes)
 
@@ -62,10 +69,12 @@ func (mc MongoDbAuthController) GenerateNonce(ctx *gin.Context) (string, error) 
 	collection, backCtx, cancel := mc.getCollection("authNonces")
 	defer cancel()
 
+	// clientIp := ctx.ClientIP()
+
 	_, mdbErr := collection.InsertOne(backCtx, bson.D{
 		{Key: "hash", Value: hash},
 		{Key: "time", Value: time.Now().Unix()},
-		{Key: "remoteAddress", Value: ctx.Request.RemoteAddr},
+		{Key: "remoteAddress", Value: remoteAddress},
 	})
 
 	if mdbErr != nil {
@@ -246,7 +255,6 @@ func (mc MongoDbAuthController) RemoveUsedNonce(hashedNonce string) error {
 
 	if mdbErr != nil {
 		return NewDBError(mdbErr.Error())
-		// return mdbErr
 	}
 
 	return nil
@@ -267,7 +275,23 @@ func (mc MongoDbAuthController) RemoveOldNonces() error {
 	return nil
 }
 
-// TODO allow only once Nonce per remote address
+// Removes all nonces associated with a remote address.
+func (mc MongoDbAuthController) RemoveNonceByRemoteAddress(remoteAddress string) error {
+	collection, backCtx, cancel := mc.getCollection("authNonces")
+	defer cancel()
+
+	_, mdbErr := collection.DeleteMany(backCtx, bson.D{
+		{Key: "remoteAddress", Value: remoteAddress},
+	})
+
+	if mdbErr != nil {
+		return NewDBError(mdbErr.Error())
+	}
+
+	return nil
+}
+
+// TODO allow only one Nonce per remote address?
 func (mc MongoDbAuthController) GetNonceFromDb(hashedNonce string, remoteAddress string) (NonceDocument, error) {
 
 	collection, backCtx, cancel := mc.getCollection("authNonces")

@@ -9,4 +9,5 @@ type AuthController interface {
 	GetNonceFromDb(hashedNonce string, remoteAddress string) (NonceDocument, error)
 	RemoveUsedNonce(hashedNonce string) error
 	RemoveOldNonces() error
+	RemoveNonceByRemoteAddress(remoteAddress string) error
 }

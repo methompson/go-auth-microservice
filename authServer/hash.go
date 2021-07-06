@@ -26,7 +26,7 @@ func hashBytes(bytes []byte) string {
 
 // This function will accept the login body data, the request context and the mongodb
 // client. It calculates the hash from the base 64 encoded data, then looks for the
-// hash in the authNonces Document collection.
+// hash in the database
 func CheckNonceHash(body LoginBody, ctx *gin.Context, dataController AuthController) error {
 	bytes, decodeStringErr := base64.URLEncoding.DecodeString(body.Nonce)
 	if decodeStringErr != nil {
