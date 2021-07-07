@@ -51,14 +51,9 @@ func (mc MongoDbAuthController) InitDatabase() error {
 // Fourth, the base64-encoded bit range is sent to the user.
 // When a user attempts to log in, this nonce is passed BACK to the server, where it can be decoded, hashed and
 // compared to hashes in the Nonce table.
+// This function uses an update function with an upsert so that we can maintain a single hash per remote address
 func (mc MongoDbAuthController) GenerateNonce(ctx *gin.Context) (string, error) {
 	remoteAddress := ctx.Request.RemoteAddr
-
-	removeErr := mc.RemoveNonceByRemoteAddress(remoteAddress)
-
-	if removeErr != nil {
-		return "", removeErr
-	}
 
 	// Generate a random string and its source bytes
 	nonce, bytes := GenerateRandomString(64)
@@ -71,11 +66,15 @@ func (mc MongoDbAuthController) GenerateNonce(ctx *gin.Context) (string, error) 
 
 	// clientIp := ctx.ClientIP()
 
-	_, mdbErr := collection.InsertOne(backCtx, bson.D{
+	opts := options.Update().SetUpsert(true)
+	filter := bson.D{{Key: "remoteAddress", Value: remoteAddress}}
+	update := bson.D{{Key: "$set", Value: bson.D{
 		{Key: "hash", Value: hash},
 		{Key: "time", Value: time.Now().Unix()},
 		{Key: "remoteAddress", Value: remoteAddress},
-	})
+	}}}
+
+	_, mdbErr := collection.UpdateOne(backCtx, filter, update, opts)
 
 	if mdbErr != nil {
 		return "", NewDBError(mdbErr.Error())
@@ -203,6 +202,10 @@ func (mc MongoDbAuthController) initNonceDatabase(dbName string) error {
 	models := []mongo.IndexModel{
 		{
 			Keys:    bson.D{{Key: "hash", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
+			Keys:    bson.D{{Key: "remoteAddress", Value: 1}},
 			Options: options.Index().SetUnique(true),
 		},
 	}
