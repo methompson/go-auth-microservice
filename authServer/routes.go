@@ -29,7 +29,18 @@ func (as AuthServer) getNonceRoute(ctx *gin.Context) {
 	nonce, err := as.AuthDataController.GenerateNonce(ctx)
 
 	if err != nil {
-		ctx.JSON(500, gin.H{})
+		msg := "Unknown Error"
+		errCode := http.StatusInternalServerError
+
+		switch err.(type) {
+		case DBError:
+			msg = "Server Error"
+			errCode = http.StatusInternalServerError
+		}
+
+		ctx.JSON(errCode, gin.H{
+			"error": msg,
+		})
 		return
 	}
 
@@ -40,18 +51,45 @@ func (as AuthServer) getNonceRoute(ctx *gin.Context) {
 
 // Takes a user's nonce, username and password and confirms the data on behalf of
 // the user. Returns a JWT that a user can use for authorization purposes.
+// /login
 func (as AuthServer) postLoginRoute(ctx *gin.Context) {
 	var body LoginBody
 
 	if bindJsonErr := ctx.ShouldBindJSON(&body); bindJsonErr != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": bindJsonErr.Error()})
+		ctx.JSON(
+			http.StatusBadRequest,
+			gin.H{"error": "Invalid Body"},
+			// gin.H{"error": bindJsonErr.Error()},
+		)
 		return
 	}
 
 	token, loginError := as.AuthDataController.LogUserIn(body, ctx)
 
 	if loginError != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": loginError.Error()})
+		msg := "Unknown Error"
+		errCode := http.StatusInternalServerError
+
+		switch loginError.(type) {
+		case NoDocError:
+			msg = "Invalid Username or Password"
+			errCode = http.StatusBadRequest
+		case DBError:
+			msg = "Server Error"
+			errCode = http.StatusInternalServerError
+		case NonceError:
+			msg = "Invalid Nonce"
+			errCode = http.StatusBadRequest
+		case JWTError:
+			msg = "Server Encountered an Error While Generating JWT"
+			errCode = http.StatusInternalServerError
+		}
+
+		ctx.JSON(
+			errCode,
+			gin.H{"error": msg},
+			// gin.H{"error": loginError.Error()},
+		)
 		return
 	}
 

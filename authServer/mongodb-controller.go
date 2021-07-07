@@ -64,6 +64,8 @@ func (mc MongoDbAuthController) GenerateNonce(ctx *gin.Context) (string, error) 
 	collection, backCtx, cancel := mc.getCollection("authNonces")
 	defer cancel()
 
+	// We could use ClientIp, but RemoteAddr contains the ephemeral port, allowing
+	// us to target a specific device from an IP address.
 	// clientIp := ctx.ClientIP()
 
 	opts := options.Update().SetUpsert(true)
@@ -86,20 +88,37 @@ func (mc MongoDbAuthController) GenerateNonce(ctx *gin.Context) (string, error) 
 
 // Returns a JWT on successful user login
 func (mc MongoDbAuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, error) {
-	checkHashErr := CheckNonceHash(body, ctx, mc)
+	hashedNonce, hashedNonceErr := GetHashedNonceFromBody(body)
 
-	if checkHashErr != nil {
-		return "", NewNonceError("invalid nonce")
+	if hashedNonceErr != nil {
+		return "", hashedNonceErr
+	}
+
+	checkNonceErr := mc.CheckNonceHash(hashedNonce, ctx)
+
+	if checkNonceErr != nil {
+		return "", checkNonceErr
 	}
 
 	userDoc, userDocErr := mc.getUserByUsername(body.Username, body.Password)
 
 	if userDocErr != nil {
-		errorMsg := fmt.Sprint("error retrieving user from database: ", userDocErr)
-		return "", NewDBError(errorMsg)
+		// errorMsg := fmt.Sprint("error retrieving user from database: ", userDocErr)
+		return "", userDocErr
 	}
 
 	return generateJWT(userDoc)
+}
+
+func (mc MongoDbAuthController) CheckNonceHash(hashedNonce string, ctx *gin.Context) error {
+	remoteAddress := ctx.Request.RemoteAddr
+	_, nonceDocErr := mc.GetNonceFromDb(hashedNonce, remoteAddress)
+
+	if nonceDocErr != nil {
+		return nonceDocErr
+	}
+
+	return nil
 }
 
 func (mc MongoDbAuthController) getCollection(collectionName string) (*mongo.Collection, context.Context, context.CancelFunc) {
@@ -240,8 +259,15 @@ func (mc MongoDbAuthController) getUserByUsername(username string, password stri
 
 	// If no document exists, we'll get an error
 	if mdbErr != nil {
-		msg := fmt.Sprintln("error getting data from database: ", mdbErr)
-		return result, NewDBError(msg)
+		var err error
+		if strings.Contains(mdbErr.Error(), "no documents in result") {
+			err = NewNoDocError("")
+		} else {
+			msg := fmt.Sprintln("error getting data from database: ", mdbErr)
+			err = NewDBError(msg)
+		}
+
+		return result, err
 	}
 
 	return result, nil
@@ -294,7 +320,6 @@ func (mc MongoDbAuthController) RemoveNonceByRemoteAddress(remoteAddress string)
 	return nil
 }
 
-// TODO allow only one Nonce per remote address?
 func (mc MongoDbAuthController) GetNonceFromDb(hashedNonce string, remoteAddress string) (NonceDocument, error) {
 
 	collection, backCtx, cancel := mc.getCollection("authNonces")
@@ -303,14 +328,23 @@ func (mc MongoDbAuthController) GetNonceFromDb(hashedNonce string, remoteAddress
 	var result NonceDocument
 
 	// We only accept nonces that were generated after the expiration time
-	mdbErr := collection.FindOne(backCtx, bson.D{
+	mdbErr := collection.FindOneAndDelete(backCtx, bson.D{
 		{Key: "hash", Value: hashedNonce},
 		{Key: "remoteAddress", Value: remoteAddress},
 		{Key: "time", Value: bson.M{"$gt": GetExpirationTime()}},
 	}).Decode(&result)
 
 	if mdbErr != nil {
-		return result, NewDBError(mdbErr.Error())
+		var err error
+
+		if strings.Contains(mdbErr.Error(), "no documents in result") {
+			err = NewNonceError("")
+		} else {
+			msg := fmt.Sprintln("error getting data from database: ", mdbErr.Error())
+			err = NewDBError(msg)
+		}
+
+		return result, err
 	}
 
 	return result, nil
