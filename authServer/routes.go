@@ -14,7 +14,6 @@ func (as AuthServer) setRoutes() {
 	as.GinEngine.GET("/public-key", as.getPublicKeyRoute)
 
 	as.GinEngine.POST("/login", as.postLoginRoute)
-	as.GinEngine.POST("/verify-token", as.postVerifyTokenRoute)
 }
 
 /****************************************************************************************
@@ -26,7 +25,7 @@ func (as AuthServer) getHomeRoute(ctx *gin.Context) {
 
 // Returns a nonce value.
 func (as AuthServer) getNonceRoute(ctx *gin.Context) {
-	nonce, err := as.AuthDataController.GenerateNonce(ctx)
+	nonce, err := as.AuthController.GenerateNonce(ctx)
 
 	if err != nil {
 		msg := "Unknown Error"
@@ -64,14 +63,14 @@ func (as AuthServer) postLoginRoute(ctx *gin.Context) {
 		return
 	}
 
-	token, loginError := as.AuthDataController.LogUserIn(body, ctx)
+	token, loginError := as.AuthController.LogUserIn(body, ctx)
 
 	if loginError != nil {
 		msg := "Unknown Error"
 		errCode := http.StatusInternalServerError
 
 		switch loginError.(type) {
-		case NoDocError:
+		case NoDocumentError:
 			msg = "Invalid Username or Password"
 			errCode = http.StatusBadRequest
 		case DBError:
@@ -88,21 +87,12 @@ func (as AuthServer) postLoginRoute(ctx *gin.Context) {
 		ctx.JSON(
 			errCode,
 			gin.H{"error": msg},
-			// gin.H{"error": loginError.Error()},
 		)
 		return
 	}
 
 	ctx.JSON(200, gin.H{
 		"token": token,
-	})
-}
-
-// Verifies JWT tokens.
-// TODO implement postVerifyTokenRoute
-func (as AuthServer) postVerifyTokenRoute(ctx *gin.Context) {
-	ctx.JSON(200, gin.H{
-		"verify": "verify",
 	})
 }
 

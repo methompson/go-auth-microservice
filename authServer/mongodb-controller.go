@@ -10,17 +10,15 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-
-	"github.com/gin-gonic/gin"
 )
 
-type MongoDbAuthController struct {
+type MongoDbController struct {
 	MongoClient *mongo.Client
 	dbName      string
 }
 
-func (mc MongoDbAuthController) InitDatabase() error {
-	userCreationErr := mc.initUserDatabase(mc.dbName)
+func (mdac MongoDbController) InitDatabase() error {
+	userCreationErr := mdac.initUserDatabase(mdac.dbName)
 
 	// We want to return an error only if it's not the "Collection already exists" error
 	// The collection will likely exist most times this app is run. We only want to
@@ -29,13 +27,13 @@ func (mc MongoDbAuthController) InitDatabase() error {
 		return userCreationErr
 	}
 
-	nonceCreationErr := mc.initNonceDatabase(mc.dbName)
+	nonceCreationErr := mdac.initNonceDatabase(mdac.dbName)
 
 	if nonceCreationErr != nil && !strings.Contains(nonceCreationErr.Error(), "Collection already exists") {
 		return nonceCreationErr
 	}
 
-	removeOldNoncesErr := mc.RemoveOldNonces()
+	removeOldNoncesErr := mdac.RemoveOldNonces()
 
 	if removeOldNoncesErr != nil {
 		return removeOldNoncesErr
@@ -44,93 +42,8 @@ func (mc MongoDbAuthController) InitDatabase() error {
 	return nil
 }
 
-// Generating and sending a nonce does the following:
-// First, it generates a random value of n bits length. This random string is encoded into base64 as a string
-// Second, a hash is generated from the bits of data in this string.
-// Third, the hash is stored in a database as an available nonce for logging in.
-// Fourth, the base64-encoded bit range is sent to the user.
-// When a user attempts to log in, this nonce is passed BACK to the server, where it can be decoded, hashed and
-// compared to hashes in the Nonce table.
-// This function uses an update function with an upsert so that we can maintain a single hash per remote address
-func (mc MongoDbAuthController) GenerateNonce(ctx *gin.Context) (string, error) {
-	remoteAddress := ctx.Request.RemoteAddr
-
-	// Generate a random string and its source bytes
-	nonce, bytes := GenerateRandomString(64)
-
-	hash := hashBytes(bytes)
-
-	// Write the hash to the database
-	collection, backCtx, cancel := mc.getCollection("authNonces")
-	defer cancel()
-
-	// We could use ClientIp, but RemoteAddr contains the ephemeral port, allowing
-	// us to target a specific device from an IP address.
-	// clientIp := ctx.ClientIP()
-
-	opts := options.Update().SetUpsert(true)
-	filter := bson.D{{Key: "remoteAddress", Value: remoteAddress}}
-	update := bson.D{{Key: "$set", Value: bson.D{
-		{Key: "hash", Value: hash},
-		{Key: "time", Value: time.Now().Unix()},
-		{Key: "remoteAddress", Value: remoteAddress},
-	}}}
-
-	_, mdbErr := collection.UpdateOne(backCtx, filter, update, opts)
-
-	if mdbErr != nil {
-		return "", NewDBError(mdbErr.Error())
-	}
-
-	// Return the nonce
-	return nonce, nil
-}
-
-// Returns a JWT on successful user login
-func (mc MongoDbAuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, error) {
-	hashedNonce, hashedNonceErr := GetHashedNonceFromBody(body)
-
-	if hashedNonceErr != nil {
-		return "", hashedNonceErr
-	}
-
-	checkNonceErr := mc.CheckNonceHash(hashedNonce, ctx)
-
-	if checkNonceErr != nil {
-		return "", checkNonceErr
-	}
-
-	userDoc, userDocErr := mc.getUserByUsername(body.Username, body.Password)
-
-	if userDocErr != nil {
-		// errorMsg := fmt.Sprint("error retrieving user from database: ", userDocErr)
-		return "", userDocErr
-	}
-
-	return generateJWT(userDoc)
-}
-
-func (mc MongoDbAuthController) CheckNonceHash(hashedNonce string, ctx *gin.Context) error {
-	remoteAddress := ctx.Request.RemoteAddr
-	_, nonceDocErr := mc.GetNonceFromDb(hashedNonce, remoteAddress)
-
-	if nonceDocErr != nil {
-		return nonceDocErr
-	}
-
-	return nil
-}
-
-func (mc MongoDbAuthController) getCollection(collectionName string) (*mongo.Collection, context.Context, context.CancelFunc) {
-	// Write the hash to the database
-	collection := mc.MongoClient.Database(mc.dbName).Collection(collectionName)
-	backCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-
-	return collection, backCtx, cancel
-}
-
-func (mc MongoDbAuthController) initUserDatabase(dbName string) error {
-	db := mc.MongoClient.Database(dbName)
+func (mdac MongoDbController) initUserDatabase(dbName string) error {
+	db := mdac.MongoClient.Database(dbName)
 
 	jsonSchema := bson.M{
 		"bsonType": "object",
@@ -176,7 +89,7 @@ func (mc MongoDbAuthController) initUserDatabase(dbName string) error {
 
 	opts := options.CreateIndexes().SetMaxTime(2 * time.Second)
 
-	collection, _, _ := mc.getCollection("users")
+	collection, _, _ := mdac.getCollection("users")
 	names, setIndexErr := collection.Indexes().CreateMany(context.TODO(), models, opts)
 
 	if setIndexErr != nil {
@@ -188,8 +101,8 @@ func (mc MongoDbAuthController) initUserDatabase(dbName string) error {
 	return nil
 }
 
-func (mc MongoDbAuthController) initNonceDatabase(dbName string) error {
-	db := mc.MongoClient.Database(dbName)
+func (mdac MongoDbController) initNonceDatabase(dbName string) error {
+	db := mdac.MongoClient.Database(dbName)
 
 	jsonSchema := bson.M{
 		"bsonType": "object",
@@ -231,7 +144,7 @@ func (mc MongoDbAuthController) initNonceDatabase(dbName string) error {
 
 	opts := options.CreateIndexes().SetMaxTime(2 * time.Second)
 
-	collection, _, _ := mc.getCollection("authNonces")
+	collection, _, _ := mdac.getCollection("authNonces")
 	names, setIndexErr := collection.Indexes().CreateMany(context.TODO(), models, opts)
 
 	if setIndexErr != nil {
@@ -243,12 +156,20 @@ func (mc MongoDbAuthController) initNonceDatabase(dbName string) error {
 	return nil
 }
 
-func (mc MongoDbAuthController) getUserByUsername(username string, password string) (UserDocument, error) {
+func (mdac MongoDbController) getCollection(collectionName string) (*mongo.Collection, context.Context, context.CancelFunc) {
+	// Write the hash to the database
+	collection := mdac.MongoClient.Database(mdac.dbName).Collection(collectionName)
+	backCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+	return collection, backCtx, cancel
+}
+
+func (mdac MongoDbController) GetUserByUsername(username string, password string) (UserDocument, error) {
 	passwordHash := hashString(password)
 
 	fmt.Println(passwordHash)
 
-	collection, backCtx, cancel := mc.getCollection("users")
+	collection, backCtx, cancel := mdac.getCollection("users")
 	defer cancel()
 
 	var result UserDocument
@@ -273,56 +194,8 @@ func (mc MongoDbAuthController) getUserByUsername(username string, password stri
 	return result, nil
 }
 
-// Once a Nonce has been checked, it should be removed
-func (mc MongoDbAuthController) RemoveUsedNonce(hashedNonce string) error {
-	collection, backCtx, cancel := mc.getCollection("authNonces")
-	defer cancel()
-
-	_, mdbErr := collection.DeleteMany(backCtx, bson.D{
-		{Key: "hash", Value: hashedNonce},
-	})
-
-	if mdbErr != nil {
-		return NewDBError(mdbErr.Error())
-	}
-
-	return nil
-}
-
-func (mc MongoDbAuthController) RemoveOldNonces() error {
-	collection, backCtx, cancel := mc.getCollection("authNonces")
-	defer cancel()
-
-	_, mdbErr := collection.DeleteMany(backCtx, bson.D{
-		{Key: "time", Value: bson.M{"$lt": GetExpirationTime()}},
-	})
-
-	if mdbErr != nil {
-		return NewDBError(mdbErr.Error())
-	}
-
-	return nil
-}
-
-// Removes all nonces associated with a remote address.
-func (mc MongoDbAuthController) RemoveNonceByRemoteAddress(remoteAddress string) error {
-	collection, backCtx, cancel := mc.getCollection("authNonces")
-	defer cancel()
-
-	_, mdbErr := collection.DeleteMany(backCtx, bson.D{
-		{Key: "remoteAddress", Value: remoteAddress},
-	})
-
-	if mdbErr != nil {
-		return NewDBError(mdbErr.Error())
-	}
-
-	return nil
-}
-
-func (mc MongoDbAuthController) GetNonceFromDb(hashedNonce string, remoteAddress string) (NonceDocument, error) {
-
-	collection, backCtx, cancel := mc.getCollection("authNonces")
+func (mdac MongoDbController) GetNonce(hashedNonce string, remoteAddress string) (NonceDocument, error) {
+	collection, backCtx, cancel := mdac.getCollection("authNonces")
 	defer cancel()
 
 	var result NonceDocument
@@ -350,7 +223,48 @@ func (mc MongoDbAuthController) GetNonceFromDb(hashedNonce string, remoteAddress
 	return result, nil
 }
 
-func SetupMongoClient() (*mongo.Client, error) {
+func (mdac MongoDbController) AddNonce(hashedNonce string, remoteAddress string) error {
+	collection, backCtx, cancel := mdac.getCollection("authNonces")
+	defer cancel()
+
+	// We could use ClientIp, but RemoteAddr contains the ephemeral port, allowing
+	// us to target a specific device from an IP address.
+	// clientIp := ctx.ClientIP()
+
+	opts := options.Update().SetUpsert(true)
+	filter := bson.D{{Key: "remoteAddress", Value: remoteAddress}}
+	update := bson.D{{Key: "$set", Value: bson.D{
+		{Key: "hash", Value: hashedNonce},
+		{Key: "time", Value: time.Now().Unix()},
+		{Key: "remoteAddress", Value: remoteAddress},
+	}}}
+
+	_, mdbErr := collection.UpdateOne(backCtx, filter, update, opts)
+
+	if mdbErr != nil {
+		return NewDBError(mdbErr.Error())
+	}
+
+	// Return the nonce
+	return nil
+}
+
+func (mdac MongoDbController) RemoveOldNonces() error {
+	collection, backCtx, cancel := mdac.getCollection("authNonces")
+	defer cancel()
+
+	_, mdbErr := collection.DeleteMany(backCtx, bson.D{
+		{Key: "time", Value: bson.M{"$lt": GetExpirationTime()}},
+	})
+
+	if mdbErr != nil {
+		return NewDBError(mdbErr.Error())
+	}
+
+	return nil
+}
+
+func setupMongoClient() (*mongo.Client, error) {
 	mongoDbUrl := os.Getenv("MONGO_DB_URL")
 	mongoDbUser := os.Getenv("MONGO_DB_USERNAME")
 	mongoDbPass := os.Getenv("MONGO_DB_PASSWORD")
@@ -372,12 +286,12 @@ func SetupMongoClient() (*mongo.Client, error) {
 	return client, nil
 }
 
-func MakeMongoDbAuthController() (MongoDbAuthController, error) {
-	client, clientErr := SetupMongoClient()
+func MakeMongoDbController() (MongoDbController, error) {
+	client, clientErr := setupMongoClient()
 
 	if clientErr != nil {
-		return MongoDbAuthController{}, clientErr
+		return MongoDbController{}, clientErr
 	}
 
-	return MongoDbAuthController{client, AUTH_DB_NAME}, nil
+	return MongoDbController{client, AUTH_DB_NAME}, nil
 }

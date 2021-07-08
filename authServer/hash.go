@@ -26,7 +26,6 @@ func GetHashedNonceFromBody(body LoginBody) (string, error) {
 	bytes, decodeStringErr := base64.URLEncoding.DecodeString(body.Nonce)
 	if decodeStringErr != nil {
 		msg := fmt.Sprintln("Invalid Base64 value: ", decodeStringErr)
-		fmt.Println(msg)
 		return "", NewNonceError(msg)
 	}
 

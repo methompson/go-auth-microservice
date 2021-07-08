@@ -5,45 +5,52 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/joho/godotenv"
 )
 
-func LoadAndCheckEnvVariables() {
+func LoadEnvVariables() error {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file: ", err)
+		msg := fmt.Sprint("Error loading .env file: ", err)
+		return NewEnvironmentVariableError(msg)
 	}
 
+	return nil
+}
+
+func CheckEnvVariables() error {
 	mongoDbUrl := os.Getenv(MONGO_DB_URL)
 	if len(mongoDbUrl) == 0 {
-		log.Fatal("MONGO_DB_URL environment variable is required")
+		msg := "MONGO_DB_URL environment variable is required"
+		return NewEnvironmentVariableError(msg)
 	}
 
 	mongoDbUser := os.Getenv(MONGO_DB_USERNAME)
 	if len(mongoDbUser) == 0 {
-		log.Fatal("MONGO_DB_USERNAME environment variable is required")
+		msg := "MONGO_DB_USERNAME environment variable is required"
+		return NewEnvironmentVariableError(msg)
 	}
 
 	mongoDbPass := os.Getenv(MONGO_DB_PASSWORD)
 	if len(mongoDbPass) == 0 {
-		log.Fatal("MONGO_DB_PASSWORD environment variable is required")
+		msg := "MONGO_DB_PASSWORD environment variable is required"
+		return NewEnvironmentVariableError(msg)
 	}
 
 	openRSAErr := openAndSetRSAKeys()
 
 	if openRSAErr != nil {
-		msg := fmt.Sprintln("error opening RSA keys.", openRSAErr)
-		log.Fatal(msg)
+		return openRSAErr
 	}
 
 	checkRSAErr := checkRSAKeys()
 	if checkRSAErr != nil {
-		msg := fmt.Sprintln("cannot read RSA keys", checkRSAErr)
-		log.Fatal(msg)
+		return checkRSAErr
 	}
+
+	return nil
 }
 
 func openAndSetRSAKeys() error {

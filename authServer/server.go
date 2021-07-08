@@ -8,13 +8,23 @@ import (
 )
 
 type AuthServer struct {
-	AuthDataController AuthController
-	GinEngine          *gin.Engine
-	scheduled          chan bool
+	AuthController AuthController
+	GinEngine      *gin.Engine
+	scheduled      chan bool
 }
 
 func StartServer() {
-	LoadAndCheckEnvVariables()
+	loadEnvErr := LoadEnvVariables()
+
+	if loadEnvErr != nil {
+		log.Fatal(loadEnvErr.Error())
+	}
+
+	checkEnvErr := CheckEnvVariables()
+
+	if checkEnvErr != nil {
+		log.Fatal(checkEnvErr.Error())
+	}
 
 	authServer := makeNewServer()
 	authServer.scheduleNonceCleanout()
@@ -26,7 +36,7 @@ func StartServer() {
 }
 
 func makeNewServer() AuthServer {
-	mdbc, err := MakeMongoDbAuthController()
+	mdbc, err := MakeMongoDbController()
 
 	if err != nil {
 		log.Fatal(err.Error())
@@ -41,7 +51,7 @@ func makeNewServer() AuthServer {
 	engine := gin.Default()
 
 	authServer := AuthServer{
-		mdbc,
+		AuthController{mdbc},
 		engine,
 		make(chan bool),
 	}
@@ -60,7 +70,7 @@ func (as AuthServer) scheduleNonceCleanout() {
 	go func() {
 		time.Sleep(5 * time.Minute)
 
-		as.AuthDataController.RemoveOldNonces()
+		as.AuthController.RemoveOldNonces()
 
 		as.scheduleNonceCleanout()
 	}()

@@ -24,13 +24,19 @@ type DBError struct{ ErrMsg string }
 func (err DBError) Error() string { return err.ErrMsg }
 func NewDBError(msg string) error { return DBError{msg} }
 
-type NoDocError struct{ ErrMsg string }
+type NoDocumentError struct{ ErrMsg string }
 
-func (err NoDocError) Error() string { return err.ErrMsg }
-func NewNoDocError(msg string) error { return NoDocError{msg} }
+func (err NoDocumentError) Error() string { return err.ErrMsg }
+func NewNoDocError(msg string) error      { return NoDocumentError{msg} }
 
 // Used for when there's an issue with reading Nonces
 type NonceError struct{ ErrMsg string }
 
 func (err NonceError) Error() string { return err.ErrMsg }
 func NewNonceError(msg string) error { return NonceError{msg} }
+
+// Used for when there's an issue with reading Nonces
+type EnvironmentVariableError struct{ ErrMsg string }
+
+func (err EnvironmentVariableError) Error() string { return err.ErrMsg }
+func NewEnvironmentVariableError(msg string) error { return EnvironmentVariableError{msg} }
