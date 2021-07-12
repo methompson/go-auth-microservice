@@ -6,7 +6,7 @@ import (
 	"methompson.com/auth-microservice/authServer"
 )
 
-func TestLoadAndCheckEnvVariables(t *testing.T) {
+func Test_LoadAndCheckEnvVariables(t *testing.T) {
 	err := authServer.CheckEnvVariables()
 
 	// fmt.Println(err.Error())

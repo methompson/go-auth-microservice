@@ -1,7 +1,11 @@
 package authServer
 
 import (
+	"flag"
+	"fmt"
+	"io"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +18,7 @@ type AuthServer struct {
 }
 
 func StartServer() {
+	flag.Parse()
 	loadEnvErr := LoadEnvVariables()
 
 	if loadEnvErr != nil {
@@ -26,6 +31,10 @@ func StartServer() {
 		log.Fatal(checkEnvErr.Error())
 	}
 
+	if os.Getenv("GIN_MODE") == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	authServer := makeNewServer()
 	authServer.scheduleNonceCleanout()
 
@@ -36,29 +45,40 @@ func StartServer() {
 }
 
 func makeNewServer() AuthServer {
-	mdbc, err := MakeMongoDbController()
+	mongoDbController, mongoDbControllerErr := MakeMongoDbController()
 
-	if err != nil {
-		log.Fatal(err.Error())
+	if mongoDbControllerErr != nil {
+		log.Fatal(mongoDbControllerErr.Error())
 	}
 
-	initDbErr := mdbc.InitDatabase()
+	initDbErr := mongoDbController.InitDatabase()
 
 	if initDbErr != nil {
 		log.Fatal("Error Initializing Database", initDbErr.Error())
 	}
+	configureLogging()
 
 	engine := gin.Default()
 
+	var passedController DatabaseController = mongoDbController
 	authServer := AuthServer{
-		AuthController{mdbc},
+		InitController(&passedController),
 		engine,
 		make(chan bool),
 	}
 
-	// authServer.scheduled <- false
-
 	return authServer
+}
+
+func configureLogging() {
+	gin.DisableConsoleColor()
+	if os.Getenv("GIN_MODE") == "release" {
+		fmt.Println("Release Mode")
+
+		// Logging to a file.
+		f, _ := os.Create("gin.log")
+		gin.DefaultWriter = io.MultiWriter(f)
+	}
 }
 
 func (as AuthServer) runServer() {

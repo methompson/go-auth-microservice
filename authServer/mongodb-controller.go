@@ -204,7 +204,7 @@ func (mdac MongoDbController) GetNonce(hashedNonce string, remoteAddress string)
 	mdbErr := collection.FindOneAndDelete(backCtx, bson.D{
 		{Key: "hash", Value: hashedNonce},
 		{Key: "remoteAddress", Value: remoteAddress},
-		{Key: "time", Value: bson.M{"$gt": GetExpirationTime()}},
+		{Key: "time", Value: bson.M{"$gt": GetNonceExpirationTime()}},
 	}).Decode(&result)
 
 	if mdbErr != nil {
@@ -254,7 +254,7 @@ func (mdac MongoDbController) RemoveOldNonces() error {
 	defer cancel()
 
 	_, mdbErr := collection.DeleteMany(backCtx, bson.D{
-		{Key: "time", Value: bson.M{"$lt": GetExpirationTime()}},
+		{Key: "time", Value: bson.M{"$lt": GetNonceExpirationTime()}},
 	})
 
 	if mdbErr != nil {

@@ -10,14 +10,22 @@ const MONGO_DB_PASSWORD = "MONGO_DB_PASSWORD"
 const RSA_PRIVATE_KEY = "RSA_PRIVATE_KEY"
 const RSA_PUBLIC_KEY = "RSA_PUBLIC_KEY"
 
-const ONE_MINUTE = 60
-const FIVE_MINUTES = ONE_MINUTE * 5
-const TEN_MINUTES = ONE_MINUTE * 10
+const FIVE_MINUTES = time.Minute * 5
+const TEN_MINUTES = time.Minute * 10
 
-const EXPIRATION = FIVE_MINUTES
+const NONCE_EXPIRATION = -1 * FIVE_MINUTES
 
-func GetExpirationTime() int64 {
-	return time.Now().Unix() - EXPIRATION
+const ONE_HOUR = time.Hour
+const FOUR_HOURS = time.Hour * 4
+const JWT_EXPIRATION = FOUR_HOURS
+
+func GetNonceExpirationTime() int64 {
+	// return time.Now().Unix() - NONCE_EXPIRATION
+	return time.Now().Add(NONCE_EXPIRATION).Unix()
+}
+
+func GetJWTExpirationTime() int64 {
+	return time.Now().Add(JWT_EXPIRATION).Unix()
 }
 
 type LoginBody struct {

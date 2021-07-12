@@ -15,3 +15,7 @@ The public key crypto system allows other microservices to easily confirm the va
 The current implementation is started with the intent of using MongoDB as the database back end. The project may, eventually, become expandable to use any database.
 
 This project is purely academic and should not be considered a serious service.
+
+To Test use the following command:
+
+`go test ./authServer/test`

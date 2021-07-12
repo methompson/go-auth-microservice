@@ -5,6 +5,9 @@
 *.so
 *.dylib
 
+# logs
+*.log
+
 # Environment Variables
 .env
 

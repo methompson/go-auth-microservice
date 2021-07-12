@@ -34,13 +34,13 @@ func (tdc TestDbController) RemoveOldNonces() error {
 	return tdc.removeOldNoncesErr
 }
 
-func (tdc TestDbController) SetInitDbErr(err error)                        { tdc.initDbErr = err }
-func (tdc TestDbController) SetUserDoc(userDoc authServer.UserDocument)    { tdc.userDoc = userDoc }
-func (tdc TestDbController) SetUserDocErr(err error)                       { tdc.userDocErr = err }
-func (tdc TestDbController) SetNonceDoc(nonceDoc authServer.NonceDocument) { tdc.nonceDoc = nonceDoc }
-func (tdc TestDbController) SetNonceDocErr(err error)                      { tdc.nonceDocErr = err }
-func (tdc TestDbController) SetAddNonceErr(err error)                      { tdc.addNonceErr = err }
-func (tdc TestDbController) SetRemoveOldNoncesErr(err error)               { tdc.removeOldNoncesErr = err }
+func (tdc *TestDbController) SetInitDbErr(err error)                        { tdc.initDbErr = err }
+func (tdc *TestDbController) SetUserDoc(userDoc authServer.UserDocument)    { tdc.userDoc = userDoc }
+func (tdc *TestDbController) SetUserDocErr(err error)                       { tdc.userDocErr = err }
+func (tdc *TestDbController) SetNonceDoc(nonceDoc authServer.NonceDocument) { tdc.nonceDoc = nonceDoc }
+func (tdc *TestDbController) SetNonceDocErr(err error)                      { tdc.nonceDocErr = err }
+func (tdc *TestDbController) SetAddNonceErr(err error)                      { tdc.addNonceErr = err }
+func (tdc *TestDbController) SetRemoveOldNoncesErr(err error)               { tdc.removeOldNoncesErr = err }
 
 func MakeBlankTestDbController() TestDbController {
 	return TestDbController{

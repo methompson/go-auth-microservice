@@ -95,13 +95,13 @@ func GetRSAPrivateKey() (*rsa.PrivateKey, error) {
 
 	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
 	if privateKeyBlock == nil {
-		fmt.Println("failed to decode private key")
+		// fmt.Println("failed to decode private key")
 		return privateKey, NewCryptoKeyError("failed to decode private key")
 	}
 
 	privateKey, privateKeyErr := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if privateKeyErr != nil {
-		fmt.Println("failed to parse private key PEM block", privateKeyErr)
+		// fmt.Println("failed to parse private key PEM block", privateKeyErr)
 		return privateKey, NewCryptoKeyError("failed to parse private key PEM block")
 	}
 
@@ -117,13 +117,13 @@ func GetRSAPublicKey() (*rsa.PublicKey, error) {
 
 	publicKeyBlock, _ := pem.Decode(publicKeyBytes)
 	if publicKeyBlock == nil {
-		fmt.Println("failed to decode public key")
+		// fmt.Println("failed to decode public key")
 		return publicKey, NewCryptoKeyError("failed to decode public key")
 	}
 
 	publicKeyInt, publicKeyIntErr := x509.ParsePKIXPublicKey(publicKeyBlock.Bytes)
 	if publicKeyIntErr != nil {
-		fmt.Println("failed to parse public key PEM block", publicKeyIntErr)
+		// fmt.Println("failed to parse public key PEM block", publicKeyIntErr)
 		return publicKey, NewCryptoKeyError("failed to parse public key PEM block")
 	}
 

@@ -2,7 +2,6 @@ package authServer
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/golang-jwt/jwt"
 )
@@ -19,7 +18,7 @@ func generateJWT(userDocument UserDocument) (string, error) {
 		userDocument.Username,
 		userDocument.Email,
 		jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Hour * 4).Unix(),
+			ExpiresAt: GetJWTExpirationTime(),
 		},
 	}
 
@@ -28,8 +27,8 @@ func generateJWT(userDocument UserDocument) (string, error) {
 	privateKey, privateKeyErr := GetRSAPrivateKey()
 
 	if privateKeyErr != nil {
-		msg := fmt.Sprintln("error getting private key ", privateKeyErr)
-		return "", NewJWTError(msg)
+		// msg := fmt.Sprintln("error getting private key ", privateKeyErr)
+		return "", privateKeyErr
 	}
 
 	signedString, tokenStringErr := token.SignedString(privateKey)
