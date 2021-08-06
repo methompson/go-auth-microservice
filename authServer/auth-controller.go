@@ -1,16 +1,20 @@
 package authServer
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
+
+	dbc "methompson.com/auth-microservice/authServer/dbController"
 )
 
 type AuthController struct {
-	DBController *DatabaseController
+	DBController *dbc.DatabaseController
 }
 
 // The DatabaseController should already be initialized before getting
 // passed to the InitController function
-func InitController(dbController *DatabaseController) AuthController {
+func InitController(dbController *dbc.DatabaseController) AuthController {
 	ac := AuthController{dbController}
 
 	return ac
@@ -29,7 +33,7 @@ func (ac AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, er
 		return "", checkNonceErr
 	}
 
-	userDoc, userDocErr := (*ac.DBController).GetUserByUsername(body.Username, body.Password)
+	userDoc, userDocErr := (*ac.DBController).GetUserByUsername(body.Username, hashString(body.Password))
 
 	if userDocErr != nil {
 		return "", userDocErr
@@ -40,7 +44,7 @@ func (ac AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, er
 
 func (ac AuthController) CheckNonceHash(hashedNonce string, ctx *gin.Context) error {
 	remoteAddress := ctx.Request.RemoteAddr
-	_, nonceDocErr := (*ac.DBController).GetNonce(hashedNonce, remoteAddress)
+	_, nonceDocErr := (*ac.DBController).GetNonce(hashedNonce, remoteAddress, GetNonceExpirationTime())
 
 	if nonceDocErr != nil {
 		return nonceDocErr
@@ -57,7 +61,7 @@ func (ac AuthController) GenerateNonce(ctx *gin.Context) (string, error) {
 
 	hash := hashBytes(bytes)
 
-	addNonceErr := (*ac.DBController).AddNonce(hash, remoteAddress)
+	addNonceErr := (*ac.DBController).AddNonce(hash, remoteAddress, time.Now().Unix())
 
 	if addNonceErr != nil {
 		return "", addNonceErr
@@ -67,5 +71,5 @@ func (ac AuthController) GenerateNonce(ctx *gin.Context) (string, error) {
 }
 
 func (ac AuthController) RemoveOldNonces() error {
-	return (*ac.DBController).RemoveOldNonces()
+	return (*ac.DBController).RemoveOldNonces(GetNonceExpirationTime())
 }

@@ -21,7 +21,7 @@
 # vendor/
 
 # Compiled Binary for the name of the project
-fileRenamerCli
+auth-microservice
 
 # Test files
 testFiles
@@ -32,3 +32,7 @@ keys/
 
 # IDE stuff
 .vscode
+
+# NPM Stuff
+node_modules
+package-lock.json

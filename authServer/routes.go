@@ -5,10 +5,11 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	dbc "methompson.com/auth-microservice/authServer/dbController"
 )
 
 // setRoutes sets all of the routes for the Gin Server
-func (as AuthServer) setRoutes() {
+func (as *AuthServer) setRoutes() {
 	as.GinEngine.GET("/", as.getHomeRoute)
 	as.GinEngine.GET("/nonce", as.getNonceRoute)
 	as.GinEngine.GET("/public-key", as.getPublicKeyRoute)
@@ -19,12 +20,12 @@ func (as AuthServer) setRoutes() {
 /****************************************************************************************
 * Route Functions
 ****************************************************************************************/
-func (as AuthServer) getHomeRoute(ctx *gin.Context) {
+func (as *AuthServer) getHomeRoute(ctx *gin.Context) {
 	ctx.Data(200, "text/html; charset=utf-8", make([]byte, 0))
 }
 
 // Returns a nonce value.
-func (as AuthServer) getNonceRoute(ctx *gin.Context) {
+func (as *AuthServer) getNonceRoute(ctx *gin.Context) {
 	nonce, err := as.AuthController.GenerateNonce(ctx)
 
 	if err != nil {
@@ -32,7 +33,7 @@ func (as AuthServer) getNonceRoute(ctx *gin.Context) {
 		errCode := http.StatusInternalServerError
 
 		switch err.(type) {
-		case DBError:
+		case dbc.DBError:
 			msg = "Server Error"
 			errCode = http.StatusInternalServerError
 		}
@@ -51,7 +52,7 @@ func (as AuthServer) getNonceRoute(ctx *gin.Context) {
 // Takes a user's nonce, username and password and confirms the data on behalf of
 // the user. Returns a JWT that a user can use for authorization purposes.
 // /login
-func (as AuthServer) postLoginRoute(ctx *gin.Context) {
+func (as *AuthServer) postLoginRoute(ctx *gin.Context) {
 	var body LoginBody
 
 	if bindJsonErr := ctx.ShouldBindJSON(&body); bindJsonErr != nil {
@@ -70,10 +71,10 @@ func (as AuthServer) postLoginRoute(ctx *gin.Context) {
 		errCode := http.StatusInternalServerError
 
 		switch loginError.(type) {
-		case NoDocumentError:
+		case dbc.NoResultsError:
 			msg = "Invalid Username or Password"
 			errCode = http.StatusBadRequest
-		case DBError:
+		case dbc.DBError:
 			msg = "Server Error"
 			errCode = http.StatusInternalServerError
 		case NonceError:
@@ -97,6 +98,6 @@ func (as AuthServer) postLoginRoute(ctx *gin.Context) {
 }
 
 // Prints the RSA Public Key for JWT verification
-func (as AuthServer) getPublicKeyRoute(ctx *gin.Context) {
+func (as *AuthServer) getPublicKeyRoute(ctx *gin.Context) {
 	ctx.String(200, os.Getenv(RSA_PUBLIC_KEY))
 }

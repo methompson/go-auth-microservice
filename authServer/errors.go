@@ -18,17 +18,6 @@ type JWTError struct{ ErrMsg string }
 func (err JWTError) Error() string { return err.ErrMsg }
 func NewJWTError(msg string) error { return JWTError{msg} }
 
-// Used for when there's an issue with a database
-type DBError struct{ ErrMsg string }
-
-func (err DBError) Error() string { return err.ErrMsg }
-func NewDBError(msg string) error { return DBError{msg} }
-
-type NoDocumentError struct{ ErrMsg string }
-
-func (err NoDocumentError) Error() string { return err.ErrMsg }
-func NewNoDocError(msg string) error      { return NoDocumentError{msg} }
-
 // Used for when there's an issue with reading Nonces
 type NonceError struct{ ErrMsg string }
 

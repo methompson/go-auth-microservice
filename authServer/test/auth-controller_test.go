@@ -8,6 +8,8 @@ import (
 
 	"github.com/golang-jwt/jwt"
 	"methompson.com/auth-microservice/authServer"
+
+	dbc "methompson.com/auth-microservice/authServer/dbController"
 )
 
 func Test_Time(t *testing.T) {
@@ -37,7 +39,7 @@ func Test_Time(t *testing.T) {
 
 func Test_InitControllerWillMakeAndReturnAuthController(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	var passedController authServer.DatabaseController = tdbc
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	if *ac.DBController != tdbc {
@@ -47,7 +49,7 @@ func Test_InitControllerWillMakeAndReturnAuthController(t *testing.T) {
 
 func Test_LogUserInFailsIfHashedNonceFails(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	var passedController authServer.DatabaseController = tdbc
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	body := authServer.LoginBody{
@@ -69,9 +71,9 @@ func Test_LogUserInFailsIfHashedNonceFails(t *testing.T) {
 		errType = "CryptoKeyError"
 	case authServer.JWTError:
 		errType = "JWTError"
-	case authServer.NoDocumentError:
+	case dbc.NoResultsError:
 		errType = "NoDocumentError"
-	case authServer.DBError:
+	case dbc.DBError:
 		errType = "DBError"
 	case authServer.NonceError:
 		// It Passed!
@@ -88,7 +90,8 @@ func Test_LogUserInFailsIfHashedNonceFails(t *testing.T) {
 func Test_LogUserInFailsIfCheckNonceFailsWithNonceError(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
 	tdbc.SetNonceDocErr(authServer.NewNonceError(""))
-	var passedController authServer.DatabaseController = tdbc
+
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	body := authServer.LoginBody{
@@ -110,9 +113,9 @@ func Test_LogUserInFailsIfCheckNonceFailsWithNonceError(t *testing.T) {
 		errType = "CryptoKeyError"
 	case authServer.JWTError:
 		errType = "JWTError"
-	case authServer.NoDocumentError:
+	case dbc.NoResultsError:
 		errType = "NoDocumentError"
-	case authServer.DBError:
+	case dbc.DBError:
 		errType = "DBError"
 	case authServer.NonceError:
 		// It Passed!
@@ -128,8 +131,8 @@ func Test_LogUserInFailsIfCheckNonceFailsWithNonceError(t *testing.T) {
 
 func Test_LogUserInFailsIfCheckNonceFailsWithDbError(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	tdbc.SetNonceDocErr(authServer.NewDBError(""))
-	var passedController authServer.DatabaseController = tdbc
+	tdbc.SetNonceDocErr(dbc.NewDBError(""))
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	body := authServer.LoginBody{
@@ -151,9 +154,9 @@ func Test_LogUserInFailsIfCheckNonceFailsWithDbError(t *testing.T) {
 		errType = "CryptoKeyError"
 	case authServer.JWTError:
 		errType = "JWTError"
-	case authServer.NoDocumentError:
+	case dbc.NoResultsError:
 		errType = "NoDocumentError"
-	case authServer.DBError:
+	case dbc.DBError:
 		// It Passed!
 		// errType = "DBError"
 	case authServer.NonceError:
@@ -169,8 +172,8 @@ func Test_LogUserInFailsIfCheckNonceFailsWithDbError(t *testing.T) {
 
 func Test_LogUserInFailsIfGetUserByUsernameFailsWithNoDocError(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	tdbc.SetUserDocErr(authServer.NewNoDocError(""))
-	var passedController authServer.DatabaseController = tdbc
+	tdbc.SetUserDocErr(dbc.NewNoResultsError(""))
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	body := authServer.LoginBody{
@@ -192,10 +195,10 @@ func Test_LogUserInFailsIfGetUserByUsernameFailsWithNoDocError(t *testing.T) {
 		errType = "CryptoKeyError"
 	case authServer.JWTError:
 		errType = "JWTError"
-	case authServer.NoDocumentError:
+	case dbc.NoResultsError:
 		// It Passed!
 		// errType = "NoDocumentError"
-	case authServer.DBError:
+	case dbc.DBError:
 		errType = "DBError"
 	case authServer.NonceError:
 		errType = "NonceError"
@@ -210,8 +213,8 @@ func Test_LogUserInFailsIfGetUserByUsernameFailsWithNoDocError(t *testing.T) {
 
 func Test_LogUserInFailsIfGetUserByUsernameFailsWithDBError(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	tdbc.SetUserDocErr(authServer.NewDBError(""))
-	var passedController authServer.DatabaseController = tdbc
+	tdbc.SetUserDocErr(dbc.NewDBError(""))
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	body := authServer.LoginBody{
@@ -233,9 +236,9 @@ func Test_LogUserInFailsIfGetUserByUsernameFailsWithDBError(t *testing.T) {
 		errType = "CryptoKeyError"
 	case authServer.JWTError:
 		errType = "JWTError"
-	case authServer.NoDocumentError:
+	case dbc.NoResultsError:
 		errType = "NoDocumentError"
-	case authServer.DBError:
+	case dbc.DBError:
 		// It Works
 		// errType = "DBError"
 	case authServer.NonceError:
@@ -251,7 +254,7 @@ func Test_LogUserInFailsIfGetUserByUsernameFailsWithDBError(t *testing.T) {
 
 func Test_LogUserInFailsIfGenerateJWTFails(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	var passedController authServer.DatabaseController = tdbc
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	body := authServer.LoginBody{
@@ -274,9 +277,9 @@ func Test_LogUserInFailsIfGenerateJWTFails(t *testing.T) {
 		// errType = "CryptoKeyError"
 	case authServer.JWTError:
 		errType = "JWTError"
-	case authServer.NoDocumentError:
+	case dbc.NoResultsError:
 		errType = "NoDocumentError"
-	case authServer.DBError:
+	case dbc.DBError:
 		errType = "DBError"
 	case authServer.NonceError:
 		errType = "NonceError"
@@ -295,13 +298,13 @@ func Test_LogUserInWillGenerateAJWT(t *testing.T) {
 	PrepTestRSAKeys()
 
 	tdbc := MakeBlankTestDbController()
-	tdbc.SetUserDoc(authServer.UserDocument{
+	tdbc.SetUserDoc(dbc.UserDocument{
 		Username: username,
 		Email:    email,
 		Enabled:  true,
 	})
 
-	var passedController authServer.DatabaseController = tdbc
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	expEarlierTime := authServer.GetJWTExpirationTime()
@@ -359,7 +362,7 @@ func Test_LogUserInWillGenerateAJWT(t *testing.T) {
 func Test_CheckNonceHashFailsIfGetNonceFails(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
 	tdbc.SetNonceDocErr(authServer.NewNonceError(""))
-	var passedController authServer.DatabaseController = tdbc
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	ctx := MakeTestContext()
@@ -376,9 +379,9 @@ func Test_CheckNonceHashFailsIfGetNonceFails(t *testing.T) {
 		errType = "CryptoKeyError"
 	case authServer.JWTError:
 		errType = "JWTError"
-	case authServer.NoDocumentError:
+	case dbc.NoResultsError:
 		errType = "NoDocumentError"
-	case authServer.DBError:
+	case dbc.DBError:
 		errType = "DBError"
 	case authServer.NonceError:
 		// It Passed!
@@ -394,7 +397,7 @@ func Test_CheckNonceHashFailsIfGetNonceFails(t *testing.T) {
 
 func Test_CheckNonceHashSucceedsIfGetNonceReturnsNoError(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	var passedController authServer.DatabaseController = tdbc
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	ctx := MakeTestContext()
@@ -408,8 +411,8 @@ func Test_CheckNonceHashSucceedsIfGetNonceReturnsNoError(t *testing.T) {
 
 func Test_GenerateNonceFailsIfAddNonceFails(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	tdbc.SetAddNonceErr(authServer.NewDBError(""))
-	var passedController authServer.DatabaseController = tdbc
+	tdbc.SetAddNonceErr(dbc.NewDBError(""))
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	ctx := MakeTestContext()
@@ -426,9 +429,9 @@ func Test_GenerateNonceFailsIfAddNonceFails(t *testing.T) {
 		errType = "CryptoKeyError"
 	case authServer.JWTError:
 		errType = "JWTError"
-	case authServer.NoDocumentError:
+	case dbc.NoResultsError:
 		errType = "NoDocumentError"
-	case authServer.DBError:
+	case dbc.DBError:
 		// It Passed!
 		// errType = "DBError"
 	case authServer.NonceError:
@@ -444,7 +447,7 @@ func Test_GenerateNonceFailsIfAddNonceFails(t *testing.T) {
 
 func Test_GenerateNonceShouldReturnARandomString(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	var passedController authServer.DatabaseController = tdbc
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	ctx := MakeTestContext()
@@ -462,8 +465,8 @@ func Test_GenerateNonceShouldReturnARandomString(t *testing.T) {
 
 func Test_RemoveOldNoncesFailsIfRemoveOldNoncesFails(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	tdbc.SetRemoveOldNoncesErr(authServer.NewDBError(""))
-	var passedController authServer.DatabaseController = tdbc
+	tdbc.SetRemoveOldNoncesErr(dbc.NewDBError(""))
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	removeError := ac.RemoveOldNonces()
@@ -478,9 +481,9 @@ func Test_RemoveOldNoncesFailsIfRemoveOldNoncesFails(t *testing.T) {
 		errType = "CryptoKeyError"
 	case authServer.JWTError:
 		errType = "JWTError"
-	case authServer.NoDocumentError:
+	case dbc.NoResultsError:
 		errType = "NoDocumentError"
-	case authServer.DBError:
+	case dbc.DBError:
 		// It Passed!
 		// errType = "DBError"
 	case authServer.NonceError:
@@ -496,7 +499,7 @@ func Test_RemoveOldNoncesFailsIfRemoveOldNoncesFails(t *testing.T) {
 
 func Test_RemoveOldNoncesSucceedsIfErrIsNil(t *testing.T) {
 	tdbc := MakeBlankTestDbController()
-	var passedController authServer.DatabaseController = tdbc
+	var passedController dbc.DatabaseController = tdbc
 	ac := authServer.InitController(&passedController)
 
 	removeError := ac.RemoveOldNonces()

@@ -4,10 +4,12 @@ import (
 	"fmt"
 
 	"github.com/golang-jwt/jwt"
+
+	dbc "methompson.com/auth-microservice/authServer/dbController"
 )
 
 // Returns a JWT
-func generateJWT(userDocument UserDocument) (string, error) {
+func generateJWT(userDocument dbc.UserDocument) (string, error) {
 	type CustomClaims struct {
 		Username string `json:"username"`
 		Email    string `json:"email"`
