@@ -39,14 +39,16 @@ func (tdc TestDbController) RemoveOldNonces(exp int64) error {
 func (tdc TestDbController) AddRequestLog(log dbc.RequestLogData) error {
 	return errors.New("Unimplemented")
 }
+
 func (tdc TestDbController) AddErrorLog(log dbc.ErrorLogData) error {
 	return errors.New("Unimplemented")
 }
 
-func (tdc TestDbController) AddUser(username string, password string, enabled bool) error {
+func (tdc TestDbController) AddUser(userDoc dbc.UserDocument, passwordHash string) error {
 	return errors.New("Unimplemented")
 }
-func (tdc TestDbController) EditUser(username string, password string, enabled bool) error {
+
+func (tdc TestDbController) EditUser(userDoc dbc.UserDocument, passwordHash string) error {
 	return errors.New("Unimplemented")
 }
 

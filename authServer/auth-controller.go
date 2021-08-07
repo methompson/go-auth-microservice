@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	au "methompson.com/auth-microservice/authServer/authUtils"
 	dbc "methompson.com/auth-microservice/authServer/dbController"
 )
 
@@ -33,7 +34,7 @@ func (ac AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, er
 		return "", checkNonceErr
 	}
 
-	userDoc, userDocErr := (*ac.DBController).GetUserByUsername(body.Username, hashString(body.Password))
+	userDoc, userDocErr := (*ac.DBController).GetUserByUsername(body.Username, au.HashString(body.Password))
 
 	if userDocErr != nil {
 		return "", userDocErr
@@ -59,7 +60,7 @@ func (ac AuthController) GenerateNonce(ctx *gin.Context) (string, error) {
 	// Generate a random string and its source bytes
 	nonce, bytes := GenerateRandomString(64)
 
-	hash := hashBytes(bytes)
+	hash := au.HashBytes(bytes)
 
 	addNonceErr := (*ac.DBController).AddNonce(hash, remoteAddress, time.Now().Unix())
 

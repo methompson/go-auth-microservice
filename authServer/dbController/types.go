@@ -15,6 +15,7 @@ type UserDocument struct {
 	Username string `bson:"username"`
 	Email    string `bson:"email"`
 	Enabled  bool   `bson:"enabled"`
+	Admin    bool   `bson:"admin"`
 }
 
 type RequestLogData struct {

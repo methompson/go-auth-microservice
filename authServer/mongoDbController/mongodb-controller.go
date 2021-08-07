@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	au "methompson.com/auth-microservice/authServer/authUtils"
 	dbc "methompson.com/auth-microservice/authServer/dbController"
 )
 
@@ -60,7 +61,7 @@ func (mdbc MongoDbController) initUserCollection(dbName string) error {
 
 	jsonSchema := bson.M{
 		"bsonType": "object",
-		"required": []string{"username", "passwordHash", "email", "enabled"},
+		"required": []string{"username", "passwordHash", "email", "enabled", "admin"},
 		"properties": bson.M{
 			"username": bson.M{
 				"bsonType":    "string",
@@ -77,6 +78,10 @@ func (mdbc MongoDbController) initUserCollection(dbName string) error {
 			"enabled": bson.M{
 				"bsonType":    "bool",
 				"description": "enabled is required and must be a boolean",
+			},
+			"admin": bson.M{
+				"bsonType":    "bool",
+				"description": "admin is required and must be a boolean",
 			},
 		},
 	}
@@ -103,13 +108,26 @@ func (mdbc MongoDbController) initUserCollection(dbName string) error {
 	opts := options.CreateIndexes().SetMaxTime(2 * time.Second)
 
 	collection, _, _ := mdbc.getCollection("users")
-	names, setIndexErr := collection.Indexes().CreateMany(context.TODO(), models, opts)
+	_, setIndexErr := collection.Indexes().CreateMany(context.TODO(), models, opts)
 
 	if setIndexErr != nil {
 		return dbc.NewDBError(setIndexErr.Error())
 	}
 
-	fmt.Printf("created indexes %v\n", names)
+	// Add an administrative user
+	addUserErr := mdbc.AddUser(dbc.UserDocument{
+		Username: "admin",
+		Email:    "admin@admin.admin",
+		Enabled:  true,
+		Admin:    true,
+	},
+		au.HashString("password"),
+	)
+
+	if addUserErr != nil {
+		fmt.Println(addUserErr.Error())
+		return dbc.NewDBError(addUserErr.Error())
+	}
 
 	return nil
 }
@@ -252,10 +270,30 @@ func (mdbc MongoDbController) GetUserByUsername(username string, passwordHash st
 	return result, nil
 }
 
-func (mdbc MongoDbController) AddUser(username string, password string, enabled bool) error {
-	return errors.New("Unimplemented")
+func (mdbc MongoDbController) AddUser(userDoc dbc.UserDocument, passwordHash string) error {
+	collection, backCtx, cancel := mdbc.getCollection("users")
+	defer cancel()
+
+	insert := bson.D{
+		{Key: "username", Value: userDoc.Username},
+		{Key: "passwordHash", Value: passwordHash},
+		{Key: "enabled", Value: userDoc.Enabled},
+		{Key: "email", Value: userDoc.Email},
+		{Key: "admin", Value: userDoc.Admin},
+	}
+
+	_, mdbErr := collection.InsertOne(backCtx, insert)
+
+	if mdbErr != nil {
+		print("Add User Error: " + mdbErr.Error() + "\n")
+		return dbc.NewDBError(mdbErr.Error())
+	}
+
+	// Return the nonce
+	return nil
 }
-func (mdbc MongoDbController) EditUser(username string, password string, enabled bool) error {
+
+func (mdbc MongoDbController) EditUser(userDoc dbc.UserDocument, passwordHash string) error {
 	return errors.New("Unimplemented")
 }
 
@@ -373,19 +411,12 @@ func (mdbc MongoDbController) AddRequestLog(log dbc.RequestLogData) error {
 
 	// Return the nonce
 	return nil
-	print("Logging: " + log.PrettyString() + "\n")
-	return nil
 }
 
 func (mdbc MongoDbController) AddErrorLog(log dbc.ErrorLogData) error {
 	collection, backCtx, cancel := mdbc.getCollection("logging")
 	defer cancel()
 
-	// We could use ClientIp, but RemoteAddr contains the ephemeral port, allowing
-	// us to target a specific device from an IP address.
-	// clientIp := ctx.ClientIP()
-
-	// filter := bson.D{{Key: "remoteAddress", Value: remoteAddress}}
 	insert := bson.D{
 		{Key: "timeStamp", Value: primitive.Timestamp{T: uint32(log.TimeStamp.Unix())}},
 		{Key: "type", Value: log.Type},
@@ -395,13 +426,10 @@ func (mdbc MongoDbController) AddErrorLog(log dbc.ErrorLogData) error {
 	_, mdbErr := collection.InsertOne(backCtx, insert)
 
 	if mdbErr != nil {
-		print("mdbErr: " + mdbErr.Error() + "\n")
 		return dbc.NewDBError(mdbErr.Error())
 	}
 
 	// Return the nonce
-	return nil
-	print("Logging: " + log.PrettyString() + "\n")
 	return nil
 }
 
