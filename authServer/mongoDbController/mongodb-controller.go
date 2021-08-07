@@ -2,6 +2,7 @@ package mongoDbController
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -249,6 +250,13 @@ func (mdbc MongoDbController) GetUserByUsername(username string, passwordHash st
 	}
 
 	return result, nil
+}
+
+func (mdbc MongoDbController) AddUser(username string, password string, enabled bool) error {
+	return errors.New("Unimplemented")
+}
+func (mdbc MongoDbController) EditUser(username string, password string, enabled bool) error {
+	return errors.New("Unimplemented")
 }
 
 // GetNonce attempts to retrieve a nonce value from the authNonces collection from the

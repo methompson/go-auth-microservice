@@ -43,6 +43,13 @@ func (tdc TestDbController) AddErrorLog(log dbc.ErrorLogData) error {
 	return errors.New("Unimplemented")
 }
 
+func (tdc TestDbController) AddUser(username string, password string, enabled bool) error {
+	return errors.New("Unimplemented")
+}
+func (tdc TestDbController) EditUser(username string, password string, enabled bool) error {
+	return errors.New("Unimplemented")
+}
+
 func (tdc *TestDbController) SetInitDbErr(err error)                 { tdc.initDbErr = err }
 func (tdc *TestDbController) SetUserDoc(userDoc dbc.UserDocument)    { tdc.userDoc = userDoc }
 func (tdc *TestDbController) SetUserDocErr(err error)                { tdc.userDocErr = err }
