@@ -1,6 +1,7 @@
 package authServer
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,17 +12,21 @@ import (
 
 type AuthController struct {
 	DBController *dbc.DatabaseController
+	Loggers      []*au.AuthLogger
 }
 
 // The DatabaseController should already be initialized before getting
 // passed to the InitController function
 func InitController(dbController *dbc.DatabaseController) AuthController {
-	ac := AuthController{dbController}
+	ac := AuthController{
+		DBController: dbController,
+		Loggers:      make([]*au.AuthLogger, 0),
+	}
 
 	return ac
 }
 
-func (ac AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, error) {
+func (ac *AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, error) {
 	hashedNonce, hashedNonceErr := GetHashedNonceFromBody(body)
 
 	if hashedNonceErr != nil {
@@ -43,7 +48,7 @@ func (ac AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, er
 	return generateJWT(userDoc)
 }
 
-func (ac AuthController) CheckNonceHash(hashedNonce string, ctx *gin.Context) error {
+func (ac *AuthController) CheckNonceHash(hashedNonce string, ctx *gin.Context) error {
 	remoteAddress := ctx.Request.RemoteAddr
 	_, nonceDocErr := (*ac.DBController).GetNonce(hashedNonce, remoteAddress, GetNonceExpirationTime())
 
@@ -54,7 +59,7 @@ func (ac AuthController) CheckNonceHash(hashedNonce string, ctx *gin.Context) er
 	return nil
 }
 
-func (ac AuthController) GenerateNonce(ctx *gin.Context) (string, error) {
+func (ac *AuthController) GenerateNonce(ctx *gin.Context) (string, error) {
 	remoteAddress := ctx.Request.RemoteAddr
 
 	// Generate a random string and its source bytes
@@ -71,6 +76,12 @@ func (ac AuthController) GenerateNonce(ctx *gin.Context) (string, error) {
 	return nonce, nil
 }
 
-func (ac AuthController) RemoveOldNonces() error {
+func (ac *AuthController) RemoveOldNonces() error {
 	return (*ac.DBController).RemoveOldNonces(GetNonceExpirationTime())
+}
+
+func (ac *AuthController) AddLogger(logger *au.AuthLogger) {
+	print("Adding!\n")
+	ac.Loggers = append(ac.Loggers, logger)
+	fmt.Printf("Added. Length: %d\n", len(ac.Loggers))
 }

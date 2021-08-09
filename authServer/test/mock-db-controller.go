@@ -3,6 +3,7 @@ package authServerTest
 import (
 	"errors"
 
+	au "methompson.com/auth-microservice/authServer/authUtils"
 	dbc "methompson.com/auth-microservice/authServer/dbController"
 )
 
@@ -36,11 +37,11 @@ func (tdc TestDbController) RemoveOldNonces(exp int64) error {
 	return tdc.removeOldNoncesErr
 }
 
-func (tdc TestDbController) AddRequestLog(log dbc.RequestLogData) error {
+func (tdc TestDbController) AddRequestLog(log *au.RequestLogData) error {
 	return errors.New("Unimplemented")
 }
 
-func (tdc TestDbController) AddErrorLog(log dbc.ErrorLogData) error {
+func (tdc TestDbController) AddInfoLog(log *au.InfoLogData) error {
 	return errors.New("Unimplemented")
 }
 

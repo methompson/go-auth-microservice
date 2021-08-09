@@ -22,9 +22,8 @@ type MongoDbController struct {
 	dbName      string
 }
 
-// InitDatabase runs several commands that create the user and nonce collections.
-// It then removes all old Nonces.
-func (mdbc MongoDbController) InitDatabase() error {
+// InitDatabase runs several commands that create the user, nonce and logging collections.
+func (mdbc *MongoDbController) InitDatabase() error {
 	userCreationErr := mdbc.initUserCollection(mdbc.dbName)
 
 	// We want to return an error only if it's not the "Collection already exists" error
@@ -51,12 +50,12 @@ func (mdbc MongoDbController) InitDatabase() error {
 
 // initUserCollection is a private method that creates the user collection and
 // sets the schema for the collection. The function accepts a dbName string
-// that represents the name of the database in which the collections are
-// created. The schema makes the username, passwordHash, email and enabled
-// keys required. Afterward, indexes are created for the collection that make
-// username and email unique. The return value is an error in case an errors
-// are encountered during initialization.
-func (mdbc MongoDbController) initUserCollection(dbName string) error {
+// that represents the name of the database in which the collections are created.
+// The schema makes the username, passwordHash, email and enabled keys required.
+// Afterward, indexes are created for the collection that make username and email
+// unique. The return value is an error in case an errors are encountered during
+// initialization.
+func (mdbc *MongoDbController) initUserCollection(dbName string) error {
 	db := mdbc.MongoClient.Database(dbName)
 
 	jsonSchema := bson.M{
@@ -134,12 +133,12 @@ func (mdbc MongoDbController) initUserCollection(dbName string) error {
 
 // initNonceDatabase is a private method that creates the authNonce collection
 // and sets the schema for the collection. The function accepts a dbName string
-// that represents the name of the database in which the collections are
-// created. The schema makes the hash, time and remoteAddress keys required.
-// Afterward, indexes are created for the collection making the hash and
-// remoteAddresses unique. The return value is an error in case an errors are
-// encountered during initialization.
-func (mdbc MongoDbController) initNonceDatabase(dbName string) error {
+// that represents the name of the database in which the collections are created.
+// The schema makes the hash, time and remoteAddress keys required. Afterward,
+// indexes are created for the collection making the hash and remoteAddresses
+// unique. The return value is an error in case an error is encountered during
+// initialization.
+func (mdbc *MongoDbController) initNonceDatabase(dbName string) error {
 	db := mdbc.MongoClient.Database(dbName)
 
 	jsonSchema := bson.M{
@@ -194,14 +193,19 @@ func (mdbc MongoDbController) initNonceDatabase(dbName string) error {
 	return nil
 }
 
-func (mdbc MongoDbController) initLoggingDatabase(dbName string) error {
+// initLoggingDatabase is a private method that creates the logging collection
+// and sets the schema for the collection. The function accepts a dbName string
+// that represents the name of the database in which the collections are created.
+// The schema makes the timestamp and type keys required. The return value is an
+// error in case an error is encountered during initialization.
+func (mdbc *MongoDbController) initLoggingDatabase(dbName string) error {
 	db := mdbc.MongoClient.Database(dbName)
 
 	jsonSchema := bson.M{
 		"bsonType": "object",
-		"required": []string{"timeStamp", "type"},
+		"required": []string{"timestamp", "type"},
 		"properties": bson.M{
-			"timeStamp": bson.M{
+			"timestamp": bson.M{
 				"bsonType":    "timestamp",
 				"description": "timestamp is required and must be a timestamp",
 			},
@@ -227,9 +231,9 @@ func (mdbc MongoDbController) initLoggingDatabase(dbName string) error {
 
 // getCollection is a convenience function that performs a function used regularly
 // throughout the Mongodbc. It accepts a collectionName string for the
-// specific collection you want to retrieve, and returns a collection context and
+// specific collection you want to retrieve, and returns a collection, context and
 // cancel function.
-func (mdbc MongoDbController) getCollection(collectionName string) (*mongo.Collection, context.Context, context.CancelFunc) {
+func (mdbc *MongoDbController) getCollection(collectionName string) (*mongo.Collection, context.Context, context.CancelFunc) {
 	// Write the hash to the database
 	collection := mdbc.MongoClient.Database(mdbc.dbName).Collection(collectionName)
 	backCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -242,7 +246,7 @@ func (mdbc MongoDbController) getCollection(collectionName string) (*mongo.Colle
 // struct and an error. The errors returned are either a document error or a database
 // error. GetUserByUsername doesn't perform any logic to generate values it uses for
 // searching the database.
-func (mdbc MongoDbController) GetUserByUsername(username string, passwordHash string) (dbc.UserDocument, error) {
+func (mdbc *MongoDbController) GetUserByUsername(username string, passwordHash string) (dbc.UserDocument, error) {
 	// passwordHash := hashString(password)
 
 	collection, colCtx, cancel := mdbc.getCollection("users")
@@ -270,7 +274,7 @@ func (mdbc MongoDbController) GetUserByUsername(username string, passwordHash st
 	return result, nil
 }
 
-func (mdbc MongoDbController) AddUser(userDoc dbc.UserDocument, passwordHash string) error {
+func (mdbc *MongoDbController) AddUser(userDoc dbc.UserDocument, passwordHash string) error {
 	collection, backCtx, cancel := mdbc.getCollection("users")
 	defer cancel()
 
@@ -293,7 +297,7 @@ func (mdbc MongoDbController) AddUser(userDoc dbc.UserDocument, passwordHash str
 	return nil
 }
 
-func (mdbc MongoDbController) EditUser(userDoc dbc.UserDocument, passwordHash string) error {
+func (mdbc *MongoDbController) EditUser(userDoc dbc.UserDocument, passwordHash string) error {
 	return errors.New("Unimplemented")
 }
 
@@ -303,7 +307,7 @@ func (mdbc MongoDbController) EditUser(userDoc dbc.UserDocument, passwordHash st
 // in types.go. The errors returned are either a document error (no docuemnts) or a
 // database error. GetNonce doesn't perform any logic to calculate the values that are
 // used to find the nonce.
-func (mdbc MongoDbController) GetNonce(hashedNonce string, remoteAddress string, exp int64) (dbc.NonceDocument, error) {
+func (mdbc *MongoDbController) GetNonce(hashedNonce string, remoteAddress string, exp int64) (dbc.NonceDocument, error) {
 	collection, backCtx, cancel := mdbc.getCollection("authNonces")
 	defer cancel()
 
@@ -336,7 +340,7 @@ func (mdbc MongoDbController) GetNonce(hashedNonce string, remoteAddress string,
 // hashedNonce String, a remoteAddress String and a time int64, indicating when the
 // request was made. AddNonce does not perform any logic to calculate the values that are
 // eventually saved in the document.
-func (mdbc MongoDbController) AddNonce(hashedNonce string, remoteAddress string, time int64) error {
+func (mdbc *MongoDbController) AddNonce(hashedNonce string, remoteAddress string, time int64) error {
 	collection, backCtx, cancel := mdbc.getCollection("authNonces")
 	defer cancel()
 
@@ -365,7 +369,7 @@ func (mdbc MongoDbController) AddNonce(hashedNonce string, remoteAddress string,
 // RemoveOldNonces is a maintenance function that removes all nonce values that
 // were added prior to the expiration time passed to the function. exp is the
 // expiration time. It represents the amount of seconds since the epoch.
-func (mdbc MongoDbController) RemoveOldNonces(exp int64) error {
+func (mdbc *MongoDbController) RemoveOldNonces(exp int64) error {
 	collection, backCtx, cancel := mdbc.getCollection("authNonces")
 	defer cancel()
 
@@ -380,17 +384,15 @@ func (mdbc MongoDbController) RemoveOldNonces(exp int64) error {
 	return nil
 }
 
-func (mdbc MongoDbController) AddRequestLog(log dbc.RequestLogData) error {
+// AddRequestLog expects a RequestLogData object and attempts to write it to the
+// database. If there are any issues saving the log information, an error will be
+// returned.
+func (mdbc *MongoDbController) AddRequestLog(log *au.RequestLogData) error {
 	collection, backCtx, cancel := mdbc.getCollection("logging")
 	defer cancel()
 
-	// We could use ClientIp, but RemoteAddr contains the ephemeral port, allowing
-	// us to target a specific device from an IP address.
-	// clientIp := ctx.ClientIP()
-
-	// filter := bson.D{{Key: "remoteAddress", Value: remoteAddress}}
 	insert := bson.D{
-		{Key: "timeStamp", Value: primitive.Timestamp{T: uint32(log.TimeStamp.Unix())}},
+		{Key: "timestamp", Value: primitive.Timestamp{T: uint32(log.Timestamp.Unix())}},
 		{Key: "type", Value: log.Type},
 		{Key: "clientIP", Value: log.ClientIP},
 		{Key: "method", Value: log.Method},
@@ -409,16 +411,18 @@ func (mdbc MongoDbController) AddRequestLog(log dbc.RequestLogData) error {
 		return dbc.NewDBError(mdbErr.Error())
 	}
 
-	// Return the nonce
 	return nil
 }
 
-func (mdbc MongoDbController) AddErrorLog(log dbc.ErrorLogData) error {
+// AddErrorLog expects an ErrorLogData object and attempts to write it to the
+// database. If there are any issues saving the log information, an error will be
+// returned.
+func (mdbc *MongoDbController) AddInfoLog(log *au.InfoLogData) error {
 	collection, backCtx, cancel := mdbc.getCollection("logging")
 	defer cancel()
 
 	insert := bson.D{
-		{Key: "timeStamp", Value: primitive.Timestamp{T: uint32(log.TimeStamp.Unix())}},
+		{Key: "timestamp", Value: primitive.Timestamp{T: uint32(log.Timestamp.Unix())}},
 		{Key: "type", Value: log.Type},
 		{Key: "message", Value: log.Message},
 	}
@@ -429,11 +433,13 @@ func (mdbc MongoDbController) AddErrorLog(log dbc.ErrorLogData) error {
 		return dbc.NewDBError(mdbErr.Error())
 	}
 
-	// Return the nonce
 	return nil
 }
 
-func setupMongoClient() (*mongo.Client, error) {
+// setupMongoDbClient constructs a MongoDB connection URL based on environment
+// variables and attempts to connect to the URL. The resulting mongo.Client
+// object is returned, and an error is returned.
+func setupMongoDbClient() (*mongo.Client, error) {
 	mongoDbUrl := os.Getenv("MONGO_DB_URL")
 	mongoDbUser := os.Getenv("MONGO_DB_USERNAME")
 	mongoDbPass := os.Getenv("MONGO_DB_PASSWORD")
@@ -455,8 +461,11 @@ func setupMongoClient() (*mongo.Client, error) {
 	return client, nil
 }
 
+// The MakeMongoDbController gets a MongoDB client object from
+// setupMongoDbClient, then wraps it up in a MongoDbController object along
+// with the database name.
 func MakeMongoDbController(dbName string) (MongoDbController, error) {
-	client, clientErr := setupMongoClient()
+	client, clientErr := setupMongoDbClient()
 
 	if clientErr != nil {
 		return MongoDbController{}, clientErr

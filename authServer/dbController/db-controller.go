@@ -1,5 +1,7 @@
 package dbController
 
+import au "methompson.com/auth-microservice/authServer/authUtils"
+
 type DatabaseController interface {
 	InitDatabase() error
 
@@ -11,6 +13,6 @@ type DatabaseController interface {
 	AddNonce(hashedNonce string, remoteAddress string, time int64) error
 	RemoveOldNonces(exp int64) error
 
-	AddRequestLog(log RequestLogData) error
-	AddErrorLog(log ErrorLogData) error
+	AddRequestLog(log *au.RequestLogData) error
+	AddInfoLog(log *au.InfoLogData) error
 }
