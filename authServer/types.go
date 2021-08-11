@@ -10,6 +10,11 @@ const MONGO_DB_PASSWORD = "MONGO_DB_PASSWORD"
 const RSA_PRIVATE_KEY = "RSA_PRIVATE_KEY"
 const RSA_PUBLIC_KEY = "RSA_PUBLIC_KEY"
 
+const FILE_LOGGING = "FILE_LOGGING"
+const FILE_LOGGING_PATH = "FILE_LOGGING_PATH"
+const DB_LOGGING = "DB_LOGGING"
+const CONSOLE_LOGGING = "CONSOLE_LOGGING"
+
 const FIVE_MINUTES = time.Minute * 5
 const TEN_MINUTES = time.Minute * 10
 
@@ -29,7 +34,20 @@ func GetJWTExpirationTime() int64 {
 }
 
 type LoginBody struct {
-	Username string `form:"username" json:"username" xml:"username"  binding:"required"`
-	Password string `form:"password" json:"password" xml:"password" binding:"required"`
-	Nonce    string `form:"nonce" json:"nonce" xml:"nonce" binding:"required"`
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	Nonce    string `json:"nonce" binding:"required"`
+}
+
+type AddUserBody struct {
+	Username string `json:"username" binding:"required"`
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password"`
+	Enabled  bool   `json:"enabled"`
+	Admin    bool   `json:"admin"`
+	Nonce    string `json:"nonce" binding:"required"`
+}
+
+type AdminHeader struct {
+	Token string `header:"authorization" binding:"required"`
 }

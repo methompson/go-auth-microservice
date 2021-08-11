@@ -1,7 +1,6 @@
 package authServer
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -81,7 +80,5 @@ func (ac *AuthController) RemoveOldNonces() error {
 }
 
 func (ac *AuthController) AddLogger(logger *au.AuthLogger) {
-	print("Adding!\n")
 	ac.Loggers = append(ac.Loggers, logger)
-	fmt.Printf("Added. Length: %d\n", len(ac.Loggers))
 }

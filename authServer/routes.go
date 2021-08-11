@@ -15,6 +15,8 @@ func (as *AuthServer) setRoutes() {
 	as.GinEngine.GET("/public-key", as.getPublicKeyRoute)
 
 	as.GinEngine.POST("/login", as.postLoginRoute)
+	as.GinEngine.POST("/add-user", as.addUser)
+	as.GinEngine.POST("/edit-user", as.editUser)
 }
 
 /****************************************************************************************
@@ -101,3 +103,32 @@ func (as *AuthServer) postLoginRoute(ctx *gin.Context) {
 func (as *AuthServer) getPublicKeyRoute(ctx *gin.Context) {
 	ctx.String(200, os.Getenv(RSA_PUBLIC_KEY))
 }
+
+func (as *AuthServer) addUser(ctx *gin.Context) {
+	var header AdminHeader
+
+	if headerErr := ctx.ShouldBindHeader(&header); headerErr != nil {
+		ctx.JSON(
+			http.StatusBadRequest,
+			gin.H{"error": "Invalid Authorization Token"},
+		)
+		return
+	}
+
+	_, jwtErr := validateJWT(header.Token)
+
+	if jwtErr != nil {
+		ctx.JSON(
+			http.StatusBadRequest,
+			gin.H{"error": "Invalid Authorization Token"},
+		)
+		return
+	}
+
+	ctx.JSON(200, gin.H{
+		"token": "token",
+	})
+	// var addUserBody AddUserBody
+}
+
+func (as *AuthServer) editUser(ctx *gin.Context) {}

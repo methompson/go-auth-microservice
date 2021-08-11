@@ -39,13 +39,13 @@ type RequestLogData struct {
 }
 
 func (rld RequestLogData) PrettyString() string {
-	msg := fmt.Sprintf("%s - [%s] %s %s %s %d %s \"%s\" \"%s\"",
+	msg := fmt.Sprintf("%s | %s %s %s %d | %s | %s | \"%s\" | \"%s\"",
 		rld.Timestamp.Format(time.RFC1123),
-		rld.ClientIP,
+		rld.Protocol,
 		rld.Method,
 		rld.Path,
-		rld.Protocol,
 		rld.StatusCode,
+		rld.ClientIP,
 		rld.Latency,
 		rld.UserAgent,
 		rld.ErrorMessage,
@@ -92,13 +92,11 @@ type FileLogger struct {
 
 func (fl *FileLogger) AddRequestLog(log *RequestLogData) error {
 	err := fl.WriteLog(log)
-
 	return err
 }
 
 func (fl *FileLogger) AddInfoLog(log *InfoLogData) error {
 	err := fl.WriteLog(log)
-
 	return err
 }
 
@@ -112,15 +110,12 @@ func (fl *FileLogger) WriteLog(log LogData) error {
 	return err
 }
 
-func MakeNewFileLogger(path string, name string) *FileLogger {
-	print("Making New File Logger \n")
+func MakeNewFileLogger(path string, name string) (*FileLogger, error) {
 	fl := FileLogger{
 		FileName: name,
 		FilePath: path,
 	}
 
-	var handle *os.File
-	var handleErr error
 	fullPath := filepath.Join(path, name)
 
 	var pathErr error
@@ -132,33 +127,32 @@ func MakeNewFileLogger(path string, name string) *FileLogger {
 	// We return the FileLogger with FileHandle set to nil
 	if pathErr != nil {
 		// do something
-		return &fl
+		return &fl, pathErr
 	}
 
-	// file, _ := os.Create("gin.log")
-	handle, handleErr = os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	handle, handleErr := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 
-	fmt.Println(handleErr)
+	if handleErr != nil {
+		return &fl, handleErr
+	}
 
 	fl.FileHandle = handle
 
-	fmt.Println(fl.FileHandle == nil)
-
-	return &fl
+	return &fl, nil
 }
 
 /****************************************************************************************
 * ConsoleLogger
 ****************************************************************************************/
 type ConsoleLogger struct {
-	LogPath  string
-	FileName string
 }
 
-func (cl ConsoleLogger) AddRequestLog(log RequestLogData) error {
+func (cl *ConsoleLogger) AddRequestLog(log *RequestLogData) error {
+	fmt.Println(log.PrettyString())
 	return nil
 }
 
-func (cl ConsoleLogger) AddInfoLog(log *InfoLogData) error {
+func (cl *ConsoleLogger) AddInfoLog(log *InfoLogData) error {
+	fmt.Println(log.PrettyString())
 	return nil
 }

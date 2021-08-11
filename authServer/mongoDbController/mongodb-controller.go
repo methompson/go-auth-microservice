@@ -407,7 +407,6 @@ func (mdbc *MongoDbController) AddRequestLog(log *au.RequestLogData) error {
 	_, mdbErr := collection.InsertOne(backCtx, insert)
 
 	if mdbErr != nil {
-		print("mdbErr: " + mdbErr.Error() + "\n")
 		return dbc.NewDBError(mdbErr.Error())
 	}
 

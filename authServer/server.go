@@ -3,6 +3,7 @@ package authServer
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
@@ -41,17 +42,23 @@ func StartServer() {
 	// We run this after creating a server, but before setting routes. Any
 	// route set BEFORE this won't actually use this.
 	if os.Getenv("GIN_MODE") == "release" {
-		configureReleaseLogging(&authServer)
-		fmt.Printf("Configured. Length: %d\n", len(authServer.AuthController.Loggers))
-	}
+		errs := configureReleaseLogging(&authServer)
 
-	addLogging(&authServer)
+		if len(errs) > 0 {
+			for _, err := range errs {
+				print(err.Error() + "\n")
+			}
+		}
+		addLogging(&authServer)
+
+		addRecovery(&authServer)
+	}
 
 	authServer.scheduleNonceCleanout()
 
 	authServer.setRoutes()
 
-	// The Run command blocks logging, so we just run it and nothing after.
+	// The Run command blocks console logging, so we just run it and nothing after.
 	authServer.runServer()
 }
 
@@ -70,8 +77,6 @@ func addLogging(as *AuthServer) {
 			ErrorMessage: param.ErrorMessage,
 		}
 
-		fmt.Printf("Logging: %d\n", len(as.AuthController.Loggers))
-
 		for _, logger := range as.AuthController.Loggers {
 			l := *logger
 			l.AddRequestLog(&requestData)
@@ -81,28 +86,62 @@ func addLogging(as *AuthServer) {
 	}))
 }
 
-func configureReleaseLogging(as *AuthServer) error {
+// TODO figure out recovery
+func addRecovery(as *AuthServer) {
+	as.GinEngine.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+		msg := "Unknown Error"
+		if err, ok := recovered.(string); ok {
+			msg = fmt.Sprintf("error: %s", err)
+			c.String(http.StatusInternalServerError, msg)
+		}
+
+		errorLog := au.InfoLogData{
+			Timestamp: time.Now(),
+			Type:      "error",
+			Message:   msg,
+		}
+
+		for _, logger := range as.AuthController.Loggers {
+			l := *logger
+			l.AddInfoLog(&errorLog)
+		}
+
+		c.AbortWithStatus(http.StatusInternalServerError)
+	}))
+}
+
+func configureReleaseLogging(as *AuthServer) []error {
+	errs := make([]error, 0)
 	controller := &as.AuthController
 
-	logErr := (*controller.DBController).AddInfoLog(&au.InfoLogData{
-		Timestamp: time.Now(),
-		Type:      "info",
-		Message:   "Starting DB Logging",
-	})
-
-	if logErr == nil {
+	if os.Getenv(DB_LOGGING) == "true" {
+		// We set the logger to a database logger
 		// First, we manipulate the pointers in order to add the DBController to the logger
 		// in order to log release data to the database.
 		var dbController au.AuthLogger = *controller.DBController
 		controller.AddLogger(&dbController)
-		return nil
 	}
 
-	return logErr
+	if os.Getenv(FILE_LOGGING) == "true" {
+		// We can also log to a file
+		var fileLogger au.AuthLogger
+		var fileLoggerErr error
 
-	// We can also log to a file
-	// var fileLogger au.AuthLogger = au.MakeNewFileLogger("logs/logs/logs", "logs.log")
-	// controller.AddLogger(&fileLogger)
+		fileLogger, fileLoggerErr = au.MakeNewFileLogger(os.Getenv(FILE_LOGGING_PATH), "logs.log")
+
+		if fileLoggerErr != nil {
+			errs = append(errs, fileLoggerErr)
+		}
+		controller.AddLogger(&fileLogger)
+	}
+
+	if os.Getenv(CONSOLE_LOGGING) == "true" {
+		var consoleLogger au.AuthLogger = &au.ConsoleLogger{}
+
+		controller.AddLogger(&consoleLogger)
+	}
+
+	return errs
 }
 
 func makeNewServer() AuthServer {
