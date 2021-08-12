@@ -7,10 +7,6 @@ import (
 	au "methompson.com/auth-microservice/authServer/authUtils"
 )
 
-type NonceBody struct {
-	Nonce string `json:"Nonce"`
-}
-
 func GetHashedNonce(nonce string) (string, error) {
 	bytes, decodeStringErr := base64.URLEncoding.DecodeString(nonce)
 	if decodeStringErr != nil {
