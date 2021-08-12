@@ -13,12 +13,14 @@ func generateJWT(userDocument dbc.UserDocument) (string, error) {
 	type CustomClaims struct {
 		Username string `json:"username"`
 		Email    string `json:"email"`
+		Admin    bool   `json:"admin"`
 		jwt.StandardClaims
 	}
 
 	claims := CustomClaims{
 		userDocument.Username,
 		userDocument.Email,
+		userDocument.Admin,
 		jwt.StandardClaims{
 			ExpiresAt: GetJWTExpirationTime(),
 		},

@@ -42,7 +42,7 @@ type LoginBody struct {
 type AddUserBody struct {
 	Username string `json:"username" binding:"required"`
 	Email    string `json:"email" binding:"required"`
-	Password string `json:"password"`
+	Password string `json:"password" binding:"required"`
 	Enabled  bool   `json:"enabled"`
 	Admin    bool   `json:"admin"`
 	Nonce    string `json:"nonce" binding:"required"`

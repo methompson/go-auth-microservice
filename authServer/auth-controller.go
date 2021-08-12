@@ -26,16 +26,10 @@ func InitController(dbController *dbc.DatabaseController) AuthController {
 }
 
 func (ac *AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, error) {
-	hashedNonce, hashedNonceErr := GetHashedNonceFromBody(body)
+	nonceErr := ac.CheckNonceValidity(body.Nonce, ctx)
 
-	if hashedNonceErr != nil {
-		return "", hashedNonceErr
-	}
-
-	checkNonceErr := ac.CheckNonceHash(hashedNonce, ctx)
-
-	if checkNonceErr != nil {
-		return "", checkNonceErr
+	if nonceErr != nil {
+		return "", nonceErr
 	}
 
 	userDoc, userDocErr := (*ac.DBController).GetUserByUsername(body.Username, au.HashString(body.Password))
@@ -47,12 +41,54 @@ func (ac *AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, e
 	return generateJWT(userDoc)
 }
 
+func (ac *AuthController) AddNewUser(body AddUserBody, ctx *gin.Context) error {
+	nonceErr := ac.CheckNonceValidity(body.Nonce, ctx)
+
+	if nonceErr != nil {
+		return nonceErr
+	}
+
+	doc := dbc.UserDocument{
+		Username: body.Username,
+		Email:    body.Email,
+		Enabled:  body.Enabled,
+		Admin:    body.Admin,
+	}
+
+	addErr := (*ac.DBController).AddUser(doc, au.HashString(body.Password))
+
+	return addErr
+}
+
+func (ac *AuthController) EditUser(body LoginBody) error {
+	return nil
+}
+
 func (ac *AuthController) CheckNonceHash(hashedNonce string, ctx *gin.Context) error {
 	remoteAddress := ctx.Request.RemoteAddr
 	_, nonceDocErr := (*ac.DBController).GetNonce(hashedNonce, remoteAddress, GetNonceExpirationTime())
 
 	if nonceDocErr != nil {
+		print("nonceDocErr " + nonceDocErr.Error() + "\n")
 		return nonceDocErr
+	}
+
+	return nil
+}
+
+func (ac *AuthController) CheckNonceValidity(nonce string, ctx *gin.Context) error {
+	hashedNonce, hashedNonceErr := GetHashedNonce(nonce)
+
+	if hashedNonceErr != nil {
+		print("hashedNonceErr " + hashedNonceErr.Error() + "\n")
+		return hashedNonceErr
+	}
+
+	checkNonceErr := ac.CheckNonceHash(hashedNonce, ctx)
+
+	if checkNonceErr != nil {
+		print("checkNonceErr " + checkNonceErr.Error() + "\n")
+		return checkNonceErr
 	}
 
 	return nil
@@ -81,4 +117,16 @@ func (ac *AuthController) RemoveOldNonces() error {
 
 func (ac *AuthController) AddLogger(logger *au.AuthLogger) {
 	ac.Loggers = append(ac.Loggers, logger)
+}
+
+func (ac *AuthController) AddRequestLog(log *au.RequestLogData) {
+	for _, logger := range ac.Loggers {
+		(*logger).AddRequestLog(log)
+	}
+}
+
+func (ac *AuthController) AddInfoLog(log *au.InfoLogData) {
+	for _, logger := range ac.Loggers {
+		(*logger).AddInfoLog(log)
+	}
 }

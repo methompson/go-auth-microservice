@@ -5,9 +5,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 	au "methompson.com/auth-microservice/authServer/authUtils"
 	dbc "methompson.com/auth-microservice/authServer/dbController"
 	mdbc "methompson.com/auth-microservice/authServer/mongoDbController"
@@ -197,4 +199,38 @@ func (as *AuthServer) scheduleNonceCleanout() {
 
 		as.scheduleNonceCleanout()
 	}()
+}
+
+func (as *AuthServer) ExtractAndVerifyAdminHeader(ctx *gin.Context) (*jwt.MapClaims, error) {
+	var header AdminHeader
+	expiredTxt := "token is expired"
+	invalidTxt := "invalid signing method"
+	verificationTxt := "verification error"
+
+	// No Token Error
+	if headerErr := ctx.ShouldBindHeader(&header); headerErr != nil {
+		return nil, NewJWTError("missing jwt from header")
+	}
+
+	claims, jwtErr := validateJWT(header.Token)
+
+	// Expired Token Error
+	// Invalid Signing Method Error
+	// Verificatin error
+	if jwtErr != nil {
+		errTxt := strings.ToLower(jwtErr.Error())
+
+		var returnErr error
+		if strings.Contains(errTxt, expiredTxt) {
+			returnErr = NewExpiredJWTError(jwtErr.Error())
+		} else if strings.Contains(errTxt, invalidTxt) || strings.Contains(errTxt, verificationTxt) {
+			returnErr = NewJWTError(jwtErr.Error())
+		} else {
+			returnErr = NewJWTError(jwtErr.Error())
+		}
+
+		return nil, returnErr
+	}
+
+	return claims, nil
 }

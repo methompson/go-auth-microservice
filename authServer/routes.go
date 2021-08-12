@@ -105,22 +105,69 @@ func (as *AuthServer) getPublicKeyRoute(ctx *gin.Context) {
 }
 
 func (as *AuthServer) addUser(ctx *gin.Context) {
-	var header AdminHeader
+	// Check the user's authorization token.
+	token, tokenErr := as.ExtractAndVerifyAdminHeader(ctx)
+	if tokenErr != nil {
+		errMsg := "Invalid authorization token"
+		if _, ok := tokenErr.(ExpiredJWTError); ok {
+			errMsg = "Expired authorization token"
+		}
 
-	if headerErr := ctx.ShouldBindHeader(&header); headerErr != nil {
 		ctx.JSON(
 			http.StatusBadRequest,
-			gin.H{"error": "Invalid Authorization Token"},
+			gin.H{"error": errMsg},
 		)
 		return
 	}
 
-	_, jwtErr := validateJWT(header.Token)
-
-	if jwtErr != nil {
+	// Verify that the user is an admin
+	admin, ok := (*token)["admin"].(bool)
+	if !ok && !admin {
 		ctx.JSON(
 			http.StatusBadRequest,
-			gin.H{"error": "Invalid Authorization Token"},
+			gin.H{"error": "not authorized"},
+		)
+		return
+	}
+
+	// Extract data from the body of the request.
+	var body AddUserBody
+	if bindJsonErr := ctx.ShouldBindJSON(&body); bindJsonErr != nil {
+		ctx.JSON(
+			http.StatusBadRequest,
+			gin.H{"error": "missing required values"},
+			// gin.H{"error": bindJsonErr.Error()},
+		)
+		return
+	}
+
+	addUserErr := as.AuthController.AddNewUser(body, ctx)
+
+	if addUserErr != nil {
+
+		var msg string
+		var statusCode int
+
+		switch addUserErr.(type) {
+		case NonceError:
+			msg = "Invalid Username or Password"
+			statusCode = http.StatusBadRequest
+		case dbc.DBError:
+			msg = "internal server error"
+			statusCode = http.StatusInternalServerError
+		default:
+			msg = "error adding user"
+			statusCode = http.StatusBadRequest
+		}
+
+		if _, ok := addUserErr.(NonceError); ok {
+			msg = "invalid nonce"
+		}
+
+		ctx.JSON(
+			statusCode,
+			gin.H{"error": msg},
+			// gin.H{"error": bindJsonErr.Error()},
 		)
 		return
 	}
