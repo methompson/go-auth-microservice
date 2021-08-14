@@ -3,6 +3,7 @@ package authServer
 import "time"
 
 const AUTH_DB_NAME = "auth"
+const GIN_MODE = "GIN_MODE"
 
 const MONGO_DB_URL = "MONGO_DB_URL"
 const MONGO_DB_USERNAME = "MONGO_DB_USERNAME"
@@ -15,6 +16,8 @@ const FILE_LOGGING_PATH = "FILE_LOGGING_PATH"
 const DB_LOGGING = "DB_LOGGING"
 const CONSOLE_LOGGING = "CONSOLE_LOGGING"
 
+const IGNORE_NONCE = "IGNORE_NONCE"
+
 const FIVE_MINUTES = time.Minute * 5
 const TEN_MINUTES = time.Minute * 10
 
@@ -25,7 +28,6 @@ const FOUR_HOURS = time.Hour * 4
 const JWT_EXPIRATION = FOUR_HOURS
 
 func GetNonceExpirationTime() int64 {
-	// return time.Now().Unix() - NONCE_EXPIRATION
 	return time.Now().Add(NONCE_EXPIRATION).Unix()
 }
 
@@ -48,6 +50,6 @@ type AddUserBody struct {
 	Nonce    string `json:"nonce" binding:"required"`
 }
 
-type AdminHeader struct {
+type AuthorizationHeader struct {
 	Token string `header:"authorization" binding:"required"`
 }

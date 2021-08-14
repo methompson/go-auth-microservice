@@ -15,14 +15,28 @@ type TestDbController struct {
 	nonceDocErr        error
 	addNonceErr        error
 	removeOldNoncesErr error
+	hashedPass         string
+}
+
+func MakeBlankTestDbController() TestDbController {
+	return TestDbController{
+		initDbErr:          nil,
+		userDoc:            dbc.UserDocument{},
+		userDocErr:         nil,
+		nonceDoc:           dbc.NonceDocument{},
+		nonceDocErr:        nil,
+		addNonceErr:        nil,
+		removeOldNoncesErr: nil,
+		hashedPass:         "",
+	}
 }
 
 func (tdc TestDbController) InitDatabase() error {
 	return tdc.initDbErr
 }
 
-func (tdc TestDbController) GetUserByUsername(username string, passwordHash string) (dbc.UserDocument, error) {
-	return tdc.userDoc, tdc.userDocErr
+func (tdc TestDbController) GetUserByUsername(username string) (dbc.UserDocument, string, error) {
+	return tdc.userDoc, "", tdc.userDocErr
 }
 
 func (tdc TestDbController) GetNonce(hashedNonce string, remoteAddress string, exp int64) (dbc.NonceDocument, error) {
@@ -60,15 +74,3 @@ func (tdc *TestDbController) SetNonceDoc(nonceDoc dbc.NonceDocument) { tdc.nonce
 func (tdc *TestDbController) SetNonceDocErr(err error)               { tdc.nonceDocErr = err }
 func (tdc *TestDbController) SetAddNonceErr(err error)               { tdc.addNonceErr = err }
 func (tdc *TestDbController) SetRemoveOldNoncesErr(err error)        { tdc.removeOldNoncesErr = err }
-
-func MakeBlankTestDbController() TestDbController {
-	return TestDbController{
-		nil,
-		dbc.UserDocument{},
-		nil,
-		dbc.NonceDocument{},
-		nil,
-		nil,
-		nil,
-	}
-}

@@ -15,8 +15,8 @@ func (as *AuthServer) setRoutes() {
 	as.GinEngine.GET("/public-key", as.getPublicKeyRoute)
 
 	as.GinEngine.POST("/login", as.postLoginRoute)
-	as.GinEngine.POST("/add-user", as.addUser)
-	as.GinEngine.POST("/edit-user", as.editUser)
+	as.GinEngine.POST("/add-user", as.postAddUserRoute)
+	as.GinEngine.POST("/edit-user", as.postEditUserRoute)
 }
 
 /****************************************************************************************
@@ -69,8 +69,8 @@ func (as *AuthServer) postLoginRoute(ctx *gin.Context) {
 	token, loginError := as.AuthController.LogUserIn(body, ctx)
 
 	if loginError != nil {
-		msg := "Unknown Error"
-		errCode := http.StatusInternalServerError
+		var msg string
+		var errCode int
 
 		switch loginError.(type) {
 		case dbc.NoResultsError:
@@ -84,6 +84,12 @@ func (as *AuthServer) postLoginRoute(ctx *gin.Context) {
 			errCode = http.StatusBadRequest
 		case JWTError:
 			msg = "Server Encountered an Error While Generating JWT"
+			errCode = http.StatusInternalServerError
+		case LoginError:
+			msg = "Invalid username or password"
+			errCode = http.StatusUnauthorized
+		default:
+			msg = "Unknown Error"
 			errCode = http.StatusInternalServerError
 		}
 
@@ -104,34 +110,36 @@ func (as *AuthServer) getPublicKeyRoute(ctx *gin.Context) {
 	ctx.String(200, os.Getenv(RSA_PUBLIC_KEY))
 }
 
-func (as *AuthServer) addUser(ctx *gin.Context) {
+// TODO Log all errors
+func (as *AuthServer) postAddUserRoute(ctx *gin.Context) {
 	// Check the user's authorization token.
-	token, tokenErr := as.ExtractAndVerifyAdminHeader(ctx)
+	tokenErr := as.ExtractAndVerifyAdminHeader(ctx)
 	if tokenErr != nil {
-		errMsg := "Invalid authorization token"
-		if _, ok := tokenErr.(ExpiredJWTError); ok {
+		var errMsg string
+		var statusCode int
+
+		switch tokenErr.(type) {
+		case ExpiredJWTError:
 			errMsg = "Expired authorization token"
+			statusCode = http.StatusUnauthorized
+		case LoginError:
+			errMsg = "Not authorized"
+			statusCode = http.StatusUnauthorized
+		default:
+			errMsg = "Invalid authorization token"
+			statusCode = http.StatusBadRequest
 		}
 
 		ctx.JSON(
-			http.StatusBadRequest,
+			statusCode,
 			gin.H{"error": errMsg},
-		)
-		return
-	}
-
-	// Verify that the user is an admin
-	admin, ok := (*token)["admin"].(bool)
-	if !ok && !admin {
-		ctx.JSON(
-			http.StatusBadRequest,
-			gin.H{"error": "not authorized"},
 		)
 		return
 	}
 
 	// Extract data from the body of the request.
 	var body AddUserBody
+
 	if bindJsonErr := ctx.ShouldBindJSON(&body); bindJsonErr != nil {
 		ctx.JSON(
 			http.StatusBadRequest,
@@ -145,29 +153,24 @@ func (as *AuthServer) addUser(ctx *gin.Context) {
 
 	if addUserErr != nil {
 
-		var msg string
+		var errMsg string
 		var statusCode int
 
 		switch addUserErr.(type) {
 		case NonceError:
-			msg = "Invalid Username or Password"
+			errMsg = "Invalid nonce"
 			statusCode = http.StatusBadRequest
 		case dbc.DBError:
-			msg = "internal server error"
+			errMsg = "Internal server error"
 			statusCode = http.StatusInternalServerError
 		default:
-			msg = "error adding user"
+			errMsg = "Error adding user"
 			statusCode = http.StatusBadRequest
-		}
-
-		if _, ok := addUserErr.(NonceError); ok {
-			msg = "invalid nonce"
 		}
 
 		ctx.JSON(
 			statusCode,
-			gin.H{"error": msg},
-			// gin.H{"error": bindJsonErr.Error()},
+			gin.H{"error": errMsg},
 		)
 		return
 	}
@@ -175,7 +178,6 @@ func (as *AuthServer) addUser(ctx *gin.Context) {
 	ctx.JSON(200, gin.H{
 		"token": "token",
 	})
-	// var addUserBody AddUserBody
 }
 
-func (as *AuthServer) editUser(ctx *gin.Context) {}
+func (as *AuthServer) postEditUserRoute(ctx *gin.Context) {}

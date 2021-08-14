@@ -5,7 +5,7 @@ import au "methompson.com/auth-microservice/authServer/authUtils"
 type DatabaseController interface {
 	InitDatabase() error
 
-	GetUserByUsername(username string, password string) (UserDocument, error)
+	GetUserByUsername(username string) (UserDocument, string, error)
 	AddUser(userDoc UserDocument, passwordHash string) error
 	EditUser(userDoc UserDocument, passwordHash string) error
 

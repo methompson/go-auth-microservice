@@ -3,6 +3,7 @@ package authServer
 import (
 	"encoding/base64"
 	"fmt"
+	"os"
 
 	au "methompson.com/auth-microservice/authServer/authUtils"
 )
@@ -17,4 +18,8 @@ func GetHashedNonce(nonce string) (string, error) {
 	hashedNonce := au.HashBytes(bytes)
 
 	return hashedNonce, nil
+}
+
+func IgnoringNonce() bool {
+	return os.Getenv(IGNORE_NONCE) == "true" && os.Getenv(GIN_MODE) != "release"
 }

@@ -201,8 +201,8 @@ func (as *AuthServer) scheduleNonceCleanout() {
 	}()
 }
 
-func (as *AuthServer) ExtractAndVerifyAdminHeader(ctx *gin.Context) (*jwt.MapClaims, error) {
-	var header AdminHeader
+func (as *AuthServer) ExtractJWTFromHeader(ctx *gin.Context) (*jwt.MapClaims, error) {
+	var header AuthorizationHeader
 	expiredTxt := "token is expired"
 	invalidTxt := "invalid signing method"
 	verificationTxt := "verification error"
@@ -233,4 +233,21 @@ func (as *AuthServer) ExtractAndVerifyAdminHeader(ctx *gin.Context) (*jwt.MapCla
 	}
 
 	return claims, nil
+}
+
+// Extracts the authorization header,
+func (as *AuthServer) ExtractAndVerifyAdminHeader(ctx *gin.Context) error {
+	claims, claimsErr := as.ExtractJWTFromHeader(ctx)
+
+	if claimsErr != nil {
+		return claimsErr
+	}
+
+	// Verify that the user is an admin
+	admin, ok := (*claims)["admin"].(bool)
+	if !ok && !admin {
+		return NewLoginError("Not an administrator")
+	}
+
+	return nil
 }

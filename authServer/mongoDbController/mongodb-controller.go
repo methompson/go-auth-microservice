@@ -22,6 +22,14 @@ type MongoDbController struct {
 	dbName      string
 }
 
+type UserDocResult struct {
+	Username     string `bson:"username"`
+	Email        string `bson:"email"`
+	Enabled      bool   `bson:"enabled"`
+	Admin        bool   `bson:"admin"`
+	PasswordHash string `bson:"passwordHash"`
+}
+
 // InitDatabase runs several commands that create the user, nonce and logging collections.
 func (mdbc *MongoDbController) InitDatabase() error {
 	userCreationErr := mdbc.initUserCollection(mdbc.dbName)
@@ -113,6 +121,12 @@ func (mdbc *MongoDbController) initUserCollection(dbName string) error {
 		return dbc.NewDBError(setIndexErr.Error())
 	}
 
+	hashedPass, hashedPassErr := au.HashPassword("password")
+
+	if hashedPassErr != nil {
+		return hashedPassErr
+	}
+
 	// Add an administrative user
 	addUserErr := mdbc.AddUser(dbc.UserDocument{
 		Username: "admin",
@@ -120,7 +134,7 @@ func (mdbc *MongoDbController) initUserCollection(dbName string) error {
 		Enabled:  true,
 		Admin:    true,
 	},
-		au.HashString("password"),
+		hashedPass,
 	)
 
 	if addUserErr != nil {
@@ -246,16 +260,15 @@ func (mdbc *MongoDbController) getCollection(collectionName string) (*mongo.Coll
 // struct and an error. The errors returned are either a document error or a database
 // error. GetUserByUsername doesn't perform any logic to generate values it uses for
 // searching the database.
-func (mdbc *MongoDbController) GetUserByUsername(username string, passwordHash string) (dbc.UserDocument, error) {
+func (mdbc *MongoDbController) GetUserByUsername(username string) (dbc.UserDocument, string, error) {
 	// passwordHash := hashString(password)
 
 	collection, colCtx, cancel := mdbc.getCollection("users")
 	defer cancel()
 
-	var result dbc.UserDocument
+	var result UserDocResult
 	mdbErr := collection.FindOne(colCtx, bson.D{
 		{Key: "username", Value: username},
-		{Key: "passwordHash", Value: passwordHash},
 	}).Decode(&result)
 
 	// If no document exists, we'll get an error
@@ -268,10 +281,15 @@ func (mdbc *MongoDbController) GetUserByUsername(username string, passwordHash s
 			err = dbc.NewDBError(msg)
 		}
 
-		return result, err
+		return dbc.UserDocument{}, "", err
 	}
 
-	return result, nil
+	return dbc.UserDocument{
+		Username: result.Username,
+		Email:    result.Email,
+		Enabled:  result.Enabled,
+		Admin:    result.Admin,
+	}, result.PasswordHash, nil
 }
 
 func (mdbc *MongoDbController) AddUser(userDoc dbc.UserDocument, passwordHash string) error {

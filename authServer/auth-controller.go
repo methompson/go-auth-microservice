@@ -26,26 +26,34 @@ func InitController(dbController *dbc.DatabaseController) AuthController {
 }
 
 func (ac *AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, error) {
-	nonceErr := ac.CheckNonceValidity(body.Nonce, ctx)
+	if !IgnoringNonce() {
+		nonceErr := ac.CheckNonceValidity(body.Nonce, ctx)
 
-	if nonceErr != nil {
-		return "", nonceErr
+		if nonceErr != nil {
+			return "", nonceErr
+		}
 	}
 
-	userDoc, userDocErr := (*ac.DBController).GetUserByUsername(body.Username, au.HashString(body.Password))
-
+	userDoc, hashedPassword, userDocErr := (*ac.DBController).GetUserByUsername(body.Username)
 	if userDocErr != nil {
 		return "", userDocErr
+	}
+
+	verify := au.CheckPasswordHash(body.Password, hashedPassword)
+	if !verify {
+		return "", NewLoginError("Password does not match")
 	}
 
 	return generateJWT(userDoc)
 }
 
 func (ac *AuthController) AddNewUser(body AddUserBody, ctx *gin.Context) error {
-	nonceErr := ac.CheckNonceValidity(body.Nonce, ctx)
+	if !IgnoringNonce() {
+		nonceErr := ac.CheckNonceValidity(body.Nonce, ctx)
 
-	if nonceErr != nil {
-		return nonceErr
+		if nonceErr != nil {
+			return nonceErr
+		}
 	}
 
 	doc := dbc.UserDocument{
@@ -55,7 +63,13 @@ func (ac *AuthController) AddNewUser(body AddUserBody, ctx *gin.Context) error {
 		Admin:    body.Admin,
 	}
 
-	addErr := (*ac.DBController).AddUser(doc, au.HashString(body.Password))
+	hash, hashErr := au.HashPassword(body.Password)
+
+	if hashErr != nil {
+		return NewHashError(hashErr.Error())
+	}
+
+	addErr := (*ac.DBController).AddUser(doc, hash)
 
 	return addErr
 }
