@@ -1,0 +1,28 @@
+package constants
+
+import "time"
+
+const AUTH_DB_NAME = "auth"
+const GIN_MODE = "GIN_MODE"
+
+const MONGO_DB_URL = "MONGO_DB_URL"
+const MONGO_DB_USERNAME = "MONGO_DB_USERNAME"
+const MONGO_DB_PASSWORD = "MONGO_DB_PASSWORD"
+const RSA_PRIVATE_KEY = "RSA_PRIVATE_KEY"
+const RSA_PUBLIC_KEY = "RSA_PUBLIC_KEY"
+
+const FILE_LOGGING = "FILE_LOGGING"
+const FILE_LOGGING_PATH = "FILE_LOGGING_PATH"
+const DB_LOGGING = "DB_LOGGING"
+const CONSOLE_LOGGING = "CONSOLE_LOGGING"
+
+const IGNORE_NONCE = "IGNORE_NONCE"
+
+const FIVE_MINUTES = time.Minute * 5
+const TEN_MINUTES = time.Minute * 10
+
+const NONCE_EXPIRATION = -1 * FIVE_MINUTES
+
+const ONE_HOUR = time.Hour
+const FOUR_HOURS = time.Hour * 4
+const JWT_EXPIRATION = FOUR_HOURS

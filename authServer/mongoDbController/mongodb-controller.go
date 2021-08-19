@@ -2,7 +2,6 @@ package mongoDbController
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -13,8 +12,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	au "methompson.com/auth-microservice/authServer/authUtils"
-	dbc "methompson.com/auth-microservice/authServer/dbController"
+	"methompson.com/auth-microservice/authServer/authUtils"
+	"methompson.com/auth-microservice/authServer/dbController"
 )
 
 type MongoDbController struct {
@@ -23,6 +22,7 @@ type MongoDbController struct {
 }
 
 type UserDocResult struct {
+	Id           string `bson:"_id"`
 	Username     string `bson:"username"`
 	Email        string `bson:"email"`
 	Enabled      bool   `bson:"enabled"`
@@ -98,7 +98,7 @@ func (mdbc *MongoDbController) initUserCollection(dbName string) error {
 	createCollectionErr := db.CreateCollection(context.TODO(), "users", colOpts)
 
 	if createCollectionErr != nil {
-		return dbc.NewDBError(createCollectionErr.Error())
+		return dbController.NewDBError(createCollectionErr.Error())
 	}
 
 	models := []mongo.IndexModel{
@@ -118,28 +118,28 @@ func (mdbc *MongoDbController) initUserCollection(dbName string) error {
 	_, setIndexErr := collection.Indexes().CreateMany(context.TODO(), models, opts)
 
 	if setIndexErr != nil {
-		return dbc.NewDBError(setIndexErr.Error())
+		return dbController.NewDBError(setIndexErr.Error())
 	}
 
-	hashedPass, hashedPassErr := au.HashPassword("password")
+	hashedPass, hashedPassErr := authUtils.HashPassword("password")
 
 	if hashedPassErr != nil {
 		return hashedPassErr
 	}
 
 	// Add an administrative user
-	addUserErr := mdbc.AddUser(dbc.UserDocument{
-		Username: "admin",
-		Email:    "admin@admin.admin",
-		Enabled:  true,
-		Admin:    true,
+	addUserErr := mdbc.AddUser(dbController.FullUserDocument{
+		Username:     "admin",
+		Email:        "admin@admin.admin",
+		Enabled:      true,
+		Admin:        true,
+		PasswordHash: hashedPass,
 	},
-		hashedPass,
 	)
 
 	if addUserErr != nil {
 		fmt.Println(addUserErr.Error())
-		return dbc.NewDBError(addUserErr.Error())
+		return dbController.NewDBError(addUserErr.Error())
 	}
 
 	return nil
@@ -179,7 +179,7 @@ func (mdbc *MongoDbController) initNonceDatabase(dbName string) error {
 	createCollectionErr := db.CreateCollection(context.TODO(), "authNonces", colOpts)
 
 	if createCollectionErr != nil {
-		return dbc.NewDBError(createCollectionErr.Error())
+		return dbController.NewDBError(createCollectionErr.Error())
 	}
 
 	models := []mongo.IndexModel{
@@ -199,7 +199,7 @@ func (mdbc *MongoDbController) initNonceDatabase(dbName string) error {
 	names, setIndexErr := collection.Indexes().CreateMany(context.TODO(), models, opts)
 
 	if setIndexErr != nil {
-		return dbc.NewDBError(setIndexErr.Error())
+		return dbController.NewDBError(setIndexErr.Error())
 	}
 
 	fmt.Printf("created indexes %v\n", names)
@@ -237,7 +237,7 @@ func (mdbc *MongoDbController) initLoggingDatabase(dbName string) error {
 	createCollectionErr := db.CreateCollection(context.TODO(), "logging", colOpts)
 
 	if createCollectionErr != nil {
-		return dbc.NewDBError(createCollectionErr.Error())
+		return dbController.NewDBError(createCollectionErr.Error())
 	}
 
 	return nil
@@ -260,9 +260,7 @@ func (mdbc *MongoDbController) getCollection(collectionName string) (*mongo.Coll
 // struct and an error. The errors returned are either a document error or a database
 // error. GetUserByUsername doesn't perform any logic to generate values it uses for
 // searching the database.
-func (mdbc *MongoDbController) GetUserByUsername(username string) (dbc.UserDocument, string, error) {
-	// passwordHash := hashString(password)
-
+func (mdbc *MongoDbController) GetUserByUsername(username string) (dbController.FullUserDocument, error) {
 	collection, colCtx, cancel := mdbc.getCollection("users")
 	defer cancel()
 
@@ -275,30 +273,69 @@ func (mdbc *MongoDbController) GetUserByUsername(username string) (dbc.UserDocum
 	if mdbErr != nil {
 		var err error
 		if strings.Contains(mdbErr.Error(), "no documents in result") {
-			err = dbc.NewNoResultsError("")
+			err = dbController.NewNoResultsError("")
 		} else {
 			msg := fmt.Sprintln("error getting data from database: ", mdbErr)
-			err = dbc.NewDBError(msg)
+			err = dbController.NewDBError(msg)
 		}
 
-		return dbc.UserDocument{}, "", err
+		return dbController.FullUserDocument{}, err
 	}
 
-	return dbc.UserDocument{
+	return dbController.FullUserDocument{
+		Id:           result.Id,
+		Username:     result.Username,
+		Email:        result.Email,
+		Enabled:      result.Enabled,
+		Admin:        result.Admin,
+		PasswordHash: result.PasswordHash,
+	}, nil
+}
+
+func (mdbc *MongoDbController) GetUserById(id string) (dbController.FullUserDocument, error) {
+	idObj, idObjErr := primitive.ObjectIDFromHex(id)
+
+	if idObjErr != nil {
+		return dbController.FullUserDocument{}, dbController.NewInvalidInputError("Invalid user id")
+	}
+
+	collection, colCtx, cancel := mdbc.getCollection("users")
+	defer cancel()
+
+	var result UserDocResult
+	mdbErr := collection.FindOne(colCtx, bson.D{
+		{Key: "_id", Value: idObj},
+	}).Decode(&result)
+
+	// If no document exists, we'll get an error
+	if mdbErr != nil {
+		var err error
+		if strings.Contains(mdbErr.Error(), "no documents in result") {
+			err = dbController.NewNoResultsError("")
+		} else {
+			msg := fmt.Sprintln("error getting data from database: ", mdbErr)
+			err = dbController.NewDBError(msg)
+		}
+
+		return dbController.FullUserDocument{}, err
+	}
+
+	return dbController.FullUserDocument{
+		Id:       result.Id,
 		Username: result.Username,
 		Email:    result.Email,
 		Enabled:  result.Enabled,
 		Admin:    result.Admin,
-	}, result.PasswordHash, nil
+	}, nil
 }
 
-func (mdbc *MongoDbController) AddUser(userDoc dbc.UserDocument, passwordHash string) error {
+func (mdbc *MongoDbController) AddUser(userDoc dbController.FullUserDocument) error {
 	collection, backCtx, cancel := mdbc.getCollection("users")
 	defer cancel()
 
 	insert := bson.D{
 		{Key: "username", Value: userDoc.Username},
-		{Key: "passwordHash", Value: passwordHash},
+		{Key: "passwordHash", Value: userDoc.PasswordHash},
 		{Key: "enabled", Value: userDoc.Enabled},
 		{Key: "email", Value: userDoc.Email},
 		{Key: "admin", Value: userDoc.Admin},
@@ -307,16 +344,97 @@ func (mdbc *MongoDbController) AddUser(userDoc dbc.UserDocument, passwordHash st
 	_, mdbErr := collection.InsertOne(backCtx, insert)
 
 	if mdbErr != nil {
-		print("Add User Error: " + mdbErr.Error() + "\n")
-		return dbc.NewDBError(mdbErr.Error())
+		err := mdbErr.Error()
+		print("Add User Error: " + err + "\n")
+
+		if strings.Contains(err, "duplicate key error") {
+			msg := "Duplicate user."
+			if strings.Contains(err, "email") {
+				msg = msg + " User with email '" + userDoc.Email + "' already exists."
+			} else if strings.Contains(err, "username") {
+				msg = msg + " User with username '" + userDoc.Username + "' already exists."
+			}
+
+			return dbController.NewDuplicateEntryError(msg)
+		}
+
+		return dbController.NewDBError(mdbErr.Error())
 	}
 
-	// Return the nonce
 	return nil
 }
 
-func (mdbc *MongoDbController) EditUser(userDoc dbc.UserDocument, passwordHash string) error {
-	return errors.New("Unimplemented")
+func (mdbc *MongoDbController) EditUser(userDoc dbController.EditUserDocument) error {
+	collection, backCtx, cancel := mdbc.getCollection("users")
+	defer cancel()
+
+	// update := bson.D{
+	// 	{
+	// 		Key: "$set", Value: bson.D{
+	// 			{Key: "username", Value: userDoc.Username},
+	// 			{Key: "enabled", Value: userDoc.Enabled},
+	// 			{Key: "email", Value: userDoc.Email},
+	// 			{Key: "admin", Value: userDoc.Admin},
+	// 		},
+	// 	},
+	// }
+
+	values := bson.D{}
+
+	if userDoc.Username != nil {
+		values = append(values, bson.E{Key: "username", Value: userDoc.Username})
+	}
+	if userDoc.Enabled != nil {
+		values = append(values, bson.E{Key: "enabled", Value: userDoc.Enabled})
+	}
+	if userDoc.Email != nil {
+		values = append(values, bson.E{Key: "email", Value: userDoc.Email})
+	}
+	if userDoc.Admin != nil {
+		values = append(values, bson.E{Key: "admin", Value: userDoc.Admin})
+	}
+
+	id, idErr := primitive.ObjectIDFromHex(userDoc.Id)
+	if idErr != nil {
+		return dbController.NewInvalidInputError("Invalid User ID")
+	}
+	filter := bson.D{{Key: "_id", Value: id}}
+
+	update := bson.D{{
+		Key: "$set", Value: values,
+	}}
+
+	result, mdbErr := collection.UpdateOne(backCtx, filter, update)
+
+	if result.MatchedCount == 0 {
+		return dbController.NewInvalidInputError("Id did not match any users")
+	}
+
+	if mdbErr != nil {
+		err := mdbErr.Error()
+		print("Edit User Error: " + err + "\n")
+
+		if strings.Contains(err, "duplicate key error") {
+			msg := "Duplicate user."
+			if strings.Contains(err, "email") && userDoc.Email != nil {
+				msg = msg + " User with email '" + *userDoc.Email + "' already exists."
+			} else if strings.Contains(err, "username") && userDoc.Username != nil {
+				msg = msg + " User with username '" + *userDoc.Username + "' already exists."
+			}
+
+			return dbController.NewDuplicateEntryError(msg)
+		}
+
+		return dbController.NewDBError(mdbErr.Error())
+	}
+
+	print("Things went fine\n")
+
+	return nil
+}
+
+func (mdbc *MongoDbController) EditUserPassword(userId string, passwordHash string) error {
+	return nil
 }
 
 // GetNonce attempts to retrieve a nonce value from the authNonces collection from the
@@ -325,11 +443,11 @@ func (mdbc *MongoDbController) EditUser(userDoc dbc.UserDocument, passwordHash s
 // in types.go. The errors returned are either a document error (no docuemnts) or a
 // database error. GetNonce doesn't perform any logic to calculate the values that are
 // used to find the nonce.
-func (mdbc *MongoDbController) GetNonce(hashedNonce string, remoteAddress string, exp int64) (dbc.NonceDocument, error) {
+func (mdbc *MongoDbController) GetNonce(hashedNonce string, remoteAddress string, exp int64) (dbController.NonceDocument, error) {
 	collection, backCtx, cancel := mdbc.getCollection("authNonces")
 	defer cancel()
 
-	var result dbc.NonceDocument
+	var result dbController.NonceDocument
 
 	// We only accept nonces that were generated after the expiration time
 	mdbErr := collection.FindOneAndDelete(backCtx, bson.D{
@@ -342,10 +460,10 @@ func (mdbc *MongoDbController) GetNonce(hashedNonce string, remoteAddress string
 		var err error
 
 		if strings.Contains(mdbErr.Error(), "no documents in result") {
-			err = dbc.NewNonceError("")
+			err = authUtils.NewNonceError("")
 		} else {
 			msg := fmt.Sprintln("error getting data from database: ", mdbErr.Error())
-			err = dbc.NewDBError(msg)
+			err = dbController.NewDBError(msg)
 		}
 
 		return result, err
@@ -377,7 +495,7 @@ func (mdbc *MongoDbController) AddNonce(hashedNonce string, remoteAddress string
 	_, mdbErr := collection.UpdateOne(backCtx, filter, update, opts)
 
 	if mdbErr != nil {
-		return dbc.NewDBError(mdbErr.Error())
+		return dbController.NewDBError(mdbErr.Error())
 	}
 
 	// Return the nonce
@@ -396,7 +514,7 @@ func (mdbc *MongoDbController) RemoveOldNonces(exp int64) error {
 	})
 
 	if mdbErr != nil {
-		return dbc.NewDBError(mdbErr.Error())
+		return dbController.NewDBError(mdbErr.Error())
 	}
 
 	return nil
@@ -405,7 +523,7 @@ func (mdbc *MongoDbController) RemoveOldNonces(exp int64) error {
 // AddRequestLog expects a RequestLogData object and attempts to write it to the
 // database. If there are any issues saving the log information, an error will be
 // returned.
-func (mdbc *MongoDbController) AddRequestLog(log *au.RequestLogData) error {
+func (mdbc *MongoDbController) AddRequestLog(log *authUtils.RequestLogData) error {
 	collection, backCtx, cancel := mdbc.getCollection("logging")
 	defer cancel()
 
@@ -425,7 +543,7 @@ func (mdbc *MongoDbController) AddRequestLog(log *au.RequestLogData) error {
 	_, mdbErr := collection.InsertOne(backCtx, insert)
 
 	if mdbErr != nil {
-		return dbc.NewDBError(mdbErr.Error())
+		return dbController.NewDBError(mdbErr.Error())
 	}
 
 	return nil
@@ -434,7 +552,7 @@ func (mdbc *MongoDbController) AddRequestLog(log *au.RequestLogData) error {
 // AddErrorLog expects an ErrorLogData object and attempts to write it to the
 // database. If there are any issues saving the log information, an error will be
 // returned.
-func (mdbc *MongoDbController) AddInfoLog(log *au.InfoLogData) error {
+func (mdbc *MongoDbController) AddInfoLog(log *authUtils.InfoLogData) error {
 	collection, backCtx, cancel := mdbc.getCollection("logging")
 	defer cancel()
 
@@ -447,7 +565,7 @@ func (mdbc *MongoDbController) AddInfoLog(log *au.InfoLogData) error {
 	_, mdbErr := collection.InsertOne(backCtx, insert)
 
 	if mdbErr != nil {
-		return dbc.NewDBError(mdbErr.Error())
+		return dbController.NewDBError(mdbErr.Error())
 	}
 
 	return nil
@@ -472,7 +590,7 @@ func setupMongoDbClient() (*mongo.Client, error) {
 
 	if mdbErr != nil {
 		err := fmt.Sprint("Error connecting: ", mdbErr.Error())
-		return client, dbc.NewDBError(err)
+		return client, dbController.NewDBError(err)
 	}
 
 	return client, nil

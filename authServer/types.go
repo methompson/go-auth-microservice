@@ -1,38 +1,13 @@
 package authServer
 
-import "time"
+import (
+	"os"
 
-const AUTH_DB_NAME = "auth"
-const GIN_MODE = "GIN_MODE"
+	"methompson.com/auth-microservice/authServer/constants"
+)
 
-const MONGO_DB_URL = "MONGO_DB_URL"
-const MONGO_DB_USERNAME = "MONGO_DB_USERNAME"
-const MONGO_DB_PASSWORD = "MONGO_DB_PASSWORD"
-const RSA_PRIVATE_KEY = "RSA_PRIVATE_KEY"
-const RSA_PUBLIC_KEY = "RSA_PUBLIC_KEY"
-
-const FILE_LOGGING = "FILE_LOGGING"
-const FILE_LOGGING_PATH = "FILE_LOGGING_PATH"
-const DB_LOGGING = "DB_LOGGING"
-const CONSOLE_LOGGING = "CONSOLE_LOGGING"
-
-const IGNORE_NONCE = "IGNORE_NONCE"
-
-const FIVE_MINUTES = time.Minute * 5
-const TEN_MINUTES = time.Minute * 10
-
-const NONCE_EXPIRATION = -1 * FIVE_MINUTES
-
-const ONE_HOUR = time.Hour
-const FOUR_HOURS = time.Hour * 4
-const JWT_EXPIRATION = FOUR_HOURS
-
-func GetNonceExpirationTime() int64 {
-	return time.Now().Add(NONCE_EXPIRATION).Unix()
-}
-
-func GetJWTExpirationTime() int64 {
-	return time.Now().Add(JWT_EXPIRATION).Unix()
+func DebugMode() bool {
+	return os.Getenv(constants.GIN_MODE) != "release"
 }
 
 type LoginBody struct {
@@ -48,6 +23,22 @@ type AddUserBody struct {
 	Enabled  bool   `json:"enabled"`
 	Admin    bool   `json:"admin"`
 	Nonce    string `json:"nonce" binding:"required"`
+}
+
+type EditUserBody struct {
+	Id       string  `json:"id" binding:"required"`
+	Username *string `json:"username"`
+	Email    *string `json:"email"`
+	Enabled  *bool   `json:"enabled"`
+	Admin    *bool   `json:"admin"`
+	Nonce    string  `json:"nonce" binding:"required"`
+}
+
+type EditPasswordBody struct {
+	Id          string `json:"id" binding:"required"`
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"newPassword" binding:"required"`
+	Nonce       string `json:"nonce" binding:"required"`
 }
 
 type AuthorizationHeader struct {

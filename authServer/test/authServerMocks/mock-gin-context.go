@@ -1,4 +1,4 @@
-package authServerTest
+package authServerMocks
 
 import (
 	// "net/http/httptest"

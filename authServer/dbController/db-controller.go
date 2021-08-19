@@ -5,9 +5,11 @@ import au "methompson.com/auth-microservice/authServer/authUtils"
 type DatabaseController interface {
 	InitDatabase() error
 
-	GetUserByUsername(username string) (UserDocument, string, error)
-	AddUser(userDoc UserDocument, passwordHash string) error
-	EditUser(userDoc UserDocument, passwordHash string) error
+	GetUserByUsername(username string) (FullUserDocument, error)
+	GetUserById(id string) (FullUserDocument, error)
+	AddUser(userDoc FullUserDocument) error
+	EditUser(userDoc EditUserDocument) error
+	EditUserPassword(userId string, passwordHash string) error
 
 	GetNonce(hashedNonce string, remoteAddress string, exp int64) (NonceDocument, error)
 	AddNonce(hashedNonce string, remoteAddress string, time int64) error

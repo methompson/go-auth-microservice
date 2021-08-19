@@ -6,9 +6,37 @@ type NonceDocument struct {
 	Time          int    `bson:"time"`
 }
 
+type FullUserDocument struct {
+	Id           string
+	Username     string
+	Email        string
+	Enabled      bool
+	Admin        bool
+	PasswordHash string
+}
+
+func (fud *FullUserDocument) GetUserDocument() UserDocument {
+	return UserDocument{
+		Id:       fud.Id,
+		Username: fud.Username,
+		Email:    fud.Email,
+		Enabled:  fud.Enabled,
+		Admin:    fud.Admin,
+	}
+}
+
 type UserDocument struct {
-	Username string `bson:"username"`
-	Email    string `bson:"email"`
-	Enabled  bool   `bson:"enabled"`
-	Admin    bool   `bson:"admin"`
+	Id       string
+	Username string
+	Email    string
+	Enabled  bool
+	Admin    bool
+}
+
+type EditUserDocument struct {
+	Id       string
+	Username *string
+	Email    *string
+	Enabled  *bool
+	Admin    *bool
 }

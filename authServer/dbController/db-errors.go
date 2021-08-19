@@ -11,8 +11,12 @@ type NoResultsError struct{ ErrMsg string }
 func (err NoResultsError) Error() string { return err.ErrMsg }
 func NewNoResultsError(msg string) error { return NoResultsError{msg} }
 
-// Used for when there's an issue with reading Nonces
-type NonceError struct{ ErrMsg string }
+type DuplicateEntryError struct{ ErrMsg string }
 
-func (err NonceError) Error() string { return err.ErrMsg }
-func NewNonceError(msg string) error { return NonceError{msg} }
+func (err DuplicateEntryError) Error() string { return err.ErrMsg }
+func NewDuplicateEntryError(msg string) error { return DuplicateEntryError{msg} }
+
+type InvalidInputError struct{ ErrMsg string }
+
+func (err InvalidInputError) Error() string { return err.ErrMsg }
+func NewInvalidInputError(msg string) error { return InvalidInputError{msg} }

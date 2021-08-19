@@ -9,12 +9,18 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt"
-	au "methompson.com/auth-microservice/authServer/authUtils"
-	dbc "methompson.com/auth-microservice/authServer/dbController"
-	mdbc "methompson.com/auth-microservice/authServer/mongoDbController"
+
+	"methompson.com/auth-microservice/authServer/authCrypto"
+	"methompson.com/auth-microservice/authServer/authUtils"
+	"methompson.com/auth-microservice/authServer/constants"
+	"methompson.com/auth-microservice/authServer/dbController"
+	"methompson.com/auth-microservice/authServer/mongoDbController"
 )
 
+// The purpose of the AuthServer is to handle all aspects of serving data, handling
+// requests and handling responses. This includes setting and configuring the main
+// server object (the *gin.Engine object), handling all actions involving the body
+// and headers of any requests, setting response codes and sending responses.
 type AuthServer struct {
 	AuthController AuthController
 	GinEngine      *gin.Engine
@@ -66,7 +72,7 @@ func StartServer() {
 
 func addLogging(as *AuthServer) {
 	as.GinEngine.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		requestData := au.RequestLogData{
+		requestData := authUtils.RequestLogData{
 			Timestamp:    param.TimeStamp,
 			Type:         "request",
 			ClientIP:     param.ClientIP,
@@ -97,7 +103,7 @@ func addRecovery(as *AuthServer) {
 			c.String(http.StatusInternalServerError, msg)
 		}
 
-		errorLog := au.InfoLogData{
+		errorLog := authUtils.InfoLogData{
 			Timestamp: time.Now(),
 			Type:      "error",
 			Message:   msg,
@@ -116,20 +122,20 @@ func configureReleaseLogging(as *AuthServer) []error {
 	errs := make([]error, 0)
 	controller := &as.AuthController
 
-	if os.Getenv(DB_LOGGING) == "true" {
+	if os.Getenv(constants.DB_LOGGING) == "true" {
 		// We set the logger to a database logger
 		// First, we manipulate the pointers in order to add the DBController to the logger
 		// in order to log release data to the database.
-		var dbController au.AuthLogger = *controller.DBController
+		var dbController authUtils.AuthLogger = *controller.DBController
 		controller.AddLogger(&dbController)
 	}
 
-	if os.Getenv(FILE_LOGGING) == "true" {
+	if os.Getenv(constants.FILE_LOGGING) == "true" {
 		// We can also log to a file
-		var fileLogger au.AuthLogger
+		var fileLogger authUtils.AuthLogger
 		var fileLoggerErr error
 
-		fileLogger, fileLoggerErr = au.MakeNewFileLogger(os.Getenv(FILE_LOGGING_PATH), "logs.log")
+		fileLogger, fileLoggerErr = authUtils.MakeNewFileLogger(os.Getenv(constants.FILE_LOGGING_PATH), "logs.log")
 
 		if fileLoggerErr != nil {
 			errs = append(errs, fileLoggerErr)
@@ -137,8 +143,8 @@ func configureReleaseLogging(as *AuthServer) []error {
 		controller.AddLogger(&fileLogger)
 	}
 
-	if os.Getenv(CONSOLE_LOGGING) == "true" {
-		var consoleLogger au.AuthLogger = &au.ConsoleLogger{}
+	if os.Getenv(constants.CONSOLE_LOGGING) == "true" {
+		var consoleLogger authUtils.AuthLogger = &authUtils.ConsoleLogger{}
 
 		controller.AddLogger(&consoleLogger)
 	}
@@ -147,13 +153,13 @@ func configureReleaseLogging(as *AuthServer) []error {
 }
 
 func makeNewServer() AuthServer {
-	mongoDbController, mongoDbControllerErr := mdbc.MakeMongoDbController(AUTH_DB_NAME)
+	mdbController, mdbControllerErr := mongoDbController.MakeMongoDbController(constants.AUTH_DB_NAME)
 
-	if mongoDbControllerErr != nil {
-		log.Fatal(mongoDbControllerErr.Error())
+	if mdbControllerErr != nil {
+		log.Fatal(mdbControllerErr.Error())
 	}
 
-	initDbErr := mongoDbController.InitDatabase()
+	initDbErr := mdbController.InitDatabase()
 
 	if initDbErr != nil {
 		log.Fatal("Error Initializing Database", initDbErr.Error())
@@ -166,8 +172,8 @@ func makeNewServer() AuthServer {
 	// DatabaseController. Then we get the pointer-to DatabaseController and
 	// assign that to cont. We can use pointer-to DatabaseController to run
 	// InitController to initialize the AuthController.
-	indirect := &mongoDbController
-	var passedController dbc.DatabaseController = indirect
+	indirect := &mdbController
+	var passedController dbController.DatabaseController = indirect
 	cont := &passedController
 
 	authServer := AuthServer{
@@ -201,7 +207,7 @@ func (as *AuthServer) scheduleNonceCleanout() {
 	}()
 }
 
-func (as *AuthServer) ExtractJWTFromHeader(ctx *gin.Context) (*jwt.MapClaims, error) {
+func (as *AuthServer) ExtractJWTFromHeader(ctx *gin.Context) (*authCrypto.JWTClaims, error) {
 	var header AuthorizationHeader
 	expiredTxt := "token is expired"
 	invalidTxt := "invalid signing method"
@@ -209,10 +215,10 @@ func (as *AuthServer) ExtractJWTFromHeader(ctx *gin.Context) (*jwt.MapClaims, er
 
 	// No Token Error
 	if headerErr := ctx.ShouldBindHeader(&header); headerErr != nil {
-		return nil, NewJWTError("missing jwt from header")
+		return nil, authCrypto.NewJWTError("missing jwt from header")
 	}
 
-	claims, jwtErr := validateJWT(header.Token)
+	claims, jwtErr := authCrypto.ValidateJWT(header.Token)
 
 	// Expired Token Error
 	// Invalid Signing Method Error
@@ -222,32 +228,15 @@ func (as *AuthServer) ExtractJWTFromHeader(ctx *gin.Context) (*jwt.MapClaims, er
 
 		var returnErr error
 		if strings.Contains(errTxt, expiredTxt) {
-			returnErr = NewExpiredJWTError(jwtErr.Error())
+			returnErr = authCrypto.NewExpiredJWTError(jwtErr.Error())
 		} else if strings.Contains(errTxt, invalidTxt) || strings.Contains(errTxt, verificationTxt) {
-			returnErr = NewJWTError(jwtErr.Error())
+			returnErr = authCrypto.NewJWTError(jwtErr.Error())
 		} else {
-			returnErr = NewJWTError(jwtErr.Error())
+			returnErr = authCrypto.NewJWTError(jwtErr.Error())
 		}
 
 		return nil, returnErr
 	}
 
 	return claims, nil
-}
-
-// Extracts the authorization header,
-func (as *AuthServer) ExtractAndVerifyAdminHeader(ctx *gin.Context) error {
-	claims, claimsErr := as.ExtractJWTFromHeader(ctx)
-
-	if claimsErr != nil {
-		return claimsErr
-	}
-
-	// Verify that the user is an admin
-	admin, ok := (*claims)["admin"].(bool)
-	if !ok && !admin {
-		return NewLoginError("Not an administrator")
-	}
-
-	return nil
 }
