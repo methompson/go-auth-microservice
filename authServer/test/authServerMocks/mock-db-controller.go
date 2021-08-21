@@ -16,6 +16,7 @@ type TestDbController struct {
 	addNonceErr        error
 	removeOldNoncesErr error
 	hashedPass         string
+	editUserErr        error
 }
 
 func MakeBlankTestDbController() TestDbController {
@@ -28,6 +29,7 @@ func MakeBlankTestDbController() TestDbController {
 		addNonceErr:        nil,
 		removeOldNoncesErr: nil,
 		hashedPass:         "",
+		editUserErr:        nil,
 	}
 }
 
@@ -68,11 +70,11 @@ func (tdc TestDbController) AddUser(userDoc dbc.FullUserDocument) error {
 }
 
 func (tdc TestDbController) EditUser(userDoc dbc.EditUserDocument) error {
-	return errors.New("Unimplemented")
+	return tdc.editUserErr
 }
 
 func (tdc TestDbController) EditUserPassword(userId string, passwordHash string) error {
-	return errors.New("Unimplemented")
+	return tdc.editUserErr
 }
 
 func (tdc *TestDbController) SetInitDbErr(err error)                  { tdc.initDbErr = err }
@@ -82,3 +84,4 @@ func (tdc *TestDbController) SetNonceDoc(nonceDoc dbc.NonceDocument)  { tdc.nonc
 func (tdc *TestDbController) SetNonceDocErr(err error)                { tdc.nonceDocErr = err }
 func (tdc *TestDbController) SetAddNonceErr(err error)                { tdc.addNonceErr = err }
 func (tdc *TestDbController) SetRemoveOldNoncesErr(err error)         { tdc.removeOldNoncesErr = err }
+func (tdc *TestDbController) SetEditUserError(err error)              { tdc.editUserErr = err }

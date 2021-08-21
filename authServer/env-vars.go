@@ -7,6 +7,7 @@ import (
 	"github.com/joho/godotenv"
 
 	ac "methompson.com/auth-microservice/authServer/authCrypto"
+	"methompson.com/auth-microservice/authServer/authUtils"
 	"methompson.com/auth-microservice/authServer/constants"
 )
 
@@ -38,6 +39,8 @@ func CheckEnvVariables() error {
 		msg := "MONGO_DB_PASSWORD environment variable is required"
 		return NewEnvironmentVariableError(msg)
 	}
+
+	authUtils.SetHashCost()
 
 	openRSAErr := openAndSetRSAKeys()
 

@@ -30,7 +30,8 @@ func InitController(dbc *dbController.DatabaseController) AuthController {
 }
 
 func (ac *AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, error) {
-	if !authUtils.IgnoringNonce() || !DebugMode() {
+	// If we're not in debug mode OR we're in debug mode and we're NOT ignoring nonces
+	if !DebugMode() || (!authUtils.IgnoringNonce() && DebugMode()) {
 		nonceErr := ac.CheckNonceValidity(body.Nonce, ctx)
 
 		if nonceErr != nil {
@@ -52,7 +53,8 @@ func (ac *AuthController) LogUserIn(body LoginBody, ctx *gin.Context) (string, e
 }
 
 func (ac *AuthController) AddNewUser(body AddUserBody, ctx *gin.Context) error {
-	if !authUtils.IgnoringNonce() && DebugMode() {
+	// If we're not in debug mode OR we're in debug mode and we're NOT ignoring nonces
+	if !DebugMode() || (!authUtils.IgnoringNonce() && DebugMode()) {
 		nonceErr := ac.CheckNonceValidity(body.Nonce, ctx)
 
 		if nonceErr != nil {
@@ -79,7 +81,8 @@ func (ac *AuthController) AddNewUser(body AddUserBody, ctx *gin.Context) error {
 }
 
 func (ac *AuthController) EditUser(body *EditUserBody, claims *authCrypto.JWTClaims, ctx *gin.Context) error {
-	if !authUtils.IgnoringNonce() && DebugMode() {
+	// If we're not in debug mode OR we're in debug mode and we're NOT ignoring nonces
+	if !DebugMode() || (!authUtils.IgnoringNonce() && DebugMode()) {
 		nonceErr := ac.CheckNonceValidity(body.Nonce, ctx)
 
 		if nonceErr != nil {
@@ -108,7 +111,8 @@ func (ac *AuthController) EditUser(body *EditUserBody, claims *authCrypto.JWTCla
 }
 
 func (ac *AuthController) EditUserPassword(body *EditPasswordBody, claims *authCrypto.JWTClaims, ctx *gin.Context) error {
-	if !authUtils.IgnoringNonce() && DebugMode() {
+	// If we're not in debug mode OR we're in debug mode and we're NOT ignoring nonces
+	if !DebugMode() || (!authUtils.IgnoringNonce() && DebugMode()) {
 		nonceErr := ac.CheckNonceValidity(body.Nonce, ctx)
 
 		if nonceErr != nil {
@@ -116,22 +120,47 @@ func (ac *AuthController) EditUserPassword(body *EditPasswordBody, claims *authC
 		}
 	}
 
-	// If the user is not an admin, we need to check the user's id against the
-	// token id. A non-admin can only edit their own data. If the token and
-	// body ids don't match, we just return an error.
-	if !claims.Admin && body.Id != claims.Id {
-		return NewUnauthorizedError("Not authorized to perform this action")
+	// If the user is not an admin, we need to perform additional checks.
+	if !claims.Admin {
+		// We need to check the user's id against the token id. A non-admin can only edit
+		// their own data. If the token and body ids don't match, we just return an error.
+		if body.Id != claims.Id {
+			return NewUnauthorizedError("Not authorized to perform this action")
+		}
+
+		// Now, we need to fetch the user data, and compare the old password passed
+		// to their current password.
+		userDoc, userDocErr := (*ac.DBController).GetUserById(body.Id)
+		if userDocErr != nil {
+			return userDocErr
+		}
+
+		verify := authUtils.CheckPasswordHash(body.OldPassword, userDoc.PasswordHash)
+		if !verify {
+			return NewLoginError("Password does not match")
+		}
 	}
 
-	return nil
+	// If we made it this far, we've passed all the checks. We can generated the password's
+	// hash and save it.
+	hashPass, hashErr := authUtils.HashPassword(body.NewPassword)
+	if hashErr != nil {
+		return NewHashError(hashErr.Error())
+	}
+
+	editPassErr := (*ac.DBController).EditUserPassword(body.Id, hashPass)
+
+	return editPassErr
 }
 
+// This function receives a calculated hash of a nonce in string form. It performs
+// a query of the list of hashed nonces in the database to determine if the combination
+// of hashed nonce and remote address exists.
 func (ac *AuthController) CheckNonceHash(hashedNonce string, ctx *gin.Context) error {
 	remoteAddress := ctx.Request.RemoteAddr
 	_, nonceDocErr := (*ac.DBController).GetNonce(hashedNonce, remoteAddress, authUtils.GetNonceExpirationTime())
 
 	if nonceDocErr != nil {
-		// print("nonceDocErr " + nonceDocErr.Error() + "\n")
 		return nonceDocErr
 	}
 
@@ -139,17 +168,17 @@ func (ac *AuthController) CheckNonceHash(hashedNonce string, ctx *gin.Context) e
 }
 
 func (ac *AuthController) CheckNonceValidity(nonce string, ctx *gin.Context) error {
+	// We get the hashed value of the byte array represented by the base64 encoded nonce.
 	hashedNonce, hashedNonceErr := authUtils.GetHashedNonce(nonce)
 
 	if hashedNonceErr != nil {
-		// print("hashedNonceErr " + hashedNonceErr.Error() + "\n")
 		return hashedNonceErr
 	}
 
+	// We Check if this nonce exists in the database.
 	checkNonceErr := ac.CheckNonceHash(hashedNonce, ctx)
 
 	if checkNonceErr != nil {
-		// print("checkNonceErr " + checkNonceErr.Error() + "\n")
 		return checkNonceErr
 	}
 

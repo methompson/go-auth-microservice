@@ -3,9 +3,28 @@ package authUtils
 import (
 	"crypto"
 	"fmt"
+	"os"
+	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
+	"methompson.com/auth-microservice/authServer/constants"
 )
+
+var hashCost = 14
+
+func SetHashCost() {
+	definedCost := os.Getenv(constants.HASH_COST)
+	conv, convErr := strconv.Atoi(definedCost)
+
+	fmt.Println("Set Hash Cost")
+
+	if convErr != nil {
+		fmt.Println(convErr.Error())
+		return
+	}
+
+	hashCost = conv
+}
 
 // Takes a string, converts to bytes and finds the sha3-512 hash from the
 // bytes of that string.
@@ -26,7 +45,7 @@ func HashBytes(bytes []byte) string {
 }
 
 func HashPassword(pass string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(pass), 14)
+	bytes, err := bcrypt.GenerateFromPassword([]byte(pass), hashCost)
 	return string(bytes), err
 }
 

@@ -18,6 +18,8 @@ const CONSOLE_LOGGING = "CONSOLE_LOGGING"
 
 const IGNORE_NONCE = "IGNORE_NONCE"
 
+const HASH_COST = "HASH_COST"
+
 const FIVE_MINUTES = time.Minute * 5
 const TEN_MINUTES = time.Minute * 10
 

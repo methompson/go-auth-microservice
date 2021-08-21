@@ -227,8 +227,8 @@ func (as *AuthServer) postEditUserRoute(ctx *gin.Context) {
 	}
 
 	// We extract the data from the request body and check that the body is OK
-	var body *EditUserBody = &EditUserBody{}
-	if bindJsonErr := ctx.ShouldBindJSON(body); bindJsonErr != nil {
+	var body EditUserBody
+	if bindJsonErr := ctx.ShouldBindJSON(&body); bindJsonErr != nil {
 		ctx.JSON(
 			http.StatusBadRequest,
 			gin.H{"error": "Missing required values"},
@@ -237,7 +237,7 @@ func (as *AuthServer) postEditUserRoute(ctx *gin.Context) {
 	}
 
 	// Perform the actual edit
-	editUserErr := as.AuthController.EditUser(body, claims, ctx)
+	editUserErr := as.AuthController.EditUser(&body, claims, ctx)
 
 	if editUserErr != nil {
 		var errMsg string
@@ -303,10 +303,9 @@ func (as *AuthServer) postEditUserPasswordRoute(ctx *gin.Context) {
 		return
 	}
 
-	// Extract data from the body of the request. We'll do this before the admin
-	// check so that we can compare the id from the body to the id in the header
-	var body *EditPasswordBody = &EditPasswordBody{}
-	if bindJsonErr := ctx.ShouldBindJSON(body); bindJsonErr != nil {
+	// Extract data from the body of the request.
+	var body EditPasswordBody
+	if bindJsonErr := ctx.ShouldBindJSON(&body); bindJsonErr != nil {
 		ctx.JSON(
 			http.StatusBadRequest,
 			gin.H{"error": "missing required values"},
@@ -314,7 +313,7 @@ func (as *AuthServer) postEditUserPasswordRoute(ctx *gin.Context) {
 		return
 	}
 
-	editPassErr := as.AuthController.EditUserPassword(body, claims, ctx)
+	editPassErr := as.AuthController.EditUserPassword(&body, claims, ctx)
 
 	if editPassErr != nil {
 		var errMsg string
