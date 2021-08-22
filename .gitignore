@@ -21,7 +21,7 @@
 # vendor/
 
 # Compiled Binary for the name of the project
-auth-microservice
+bin/
 
 # Test files
 testFiles

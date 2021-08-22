@@ -1,0 +1,10 @@
+FROM golang:1.16
+
+RUN mkdir -p /srv/auth
+WORKDIR /srv/auth
+
+COPY bin/auth-microserver ./auth-microserver
+COPY keys ./keys
+COPY .env .
+
+CMD ["./auth-microserver"]
