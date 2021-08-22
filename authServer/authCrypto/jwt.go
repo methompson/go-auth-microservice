@@ -31,7 +31,6 @@ func NewExpiredJWTError(msg string) error { return ExpiredJWTError{msg} }
 ****************************************************************************************/
 
 type JWTClaims struct {
-	Id       string `json:"id"`
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Admin    bool   `json:"admin"`
@@ -53,12 +52,12 @@ func GetJWTExpirationTime() int64 {
 // Returns a JWT
 func GenerateJWT(userDocument dbc.UserDocument) (string, error) {
 	claims := JWTClaims{
-		userDocument.Id,
-		userDocument.Username,
-		userDocument.Email,
-		userDocument.Admin,
-		jwt.StandardClaims{
+		Username: userDocument.Username,
+		Email:    userDocument.Email,
+		Admin:    userDocument.Admin,
+		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: GetJWTExpirationTime(),
+			Subject:   userDocument.Id,
 		},
 	}
 
@@ -99,9 +98,7 @@ func ValidateJWT(tokenString string) (*JWTClaims, error) {
 		return nil, parseErr
 	}
 
-	_, ok := token.Claims.(jwt.MapClaims)
-
-	if !ok || !token.Valid {
+	if !token.Valid {
 		return nil, NewJWTError("invalid claims")
 	}
 

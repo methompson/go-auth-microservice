@@ -1,12 +1,12 @@
 package authUtils
 
 import (
-	"crypto"
-	"fmt"
+	"encoding/hex"
 	"os"
 	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/sha3"
 	"methompson.com/auth-microservice/authServer/constants"
 )
 
@@ -16,10 +16,7 @@ func SetHashCost() {
 	definedCost := os.Getenv(constants.HASH_COST)
 	conv, convErr := strconv.Atoi(definedCost)
 
-	fmt.Println("Set Hash Cost")
-
 	if convErr != nil {
-		fmt.Println(convErr.Error())
 		return
 	}
 
@@ -36,12 +33,13 @@ func HashString(str string) string {
 // Takes an array of bytes and calculates the sha3-512 hash of the bytes array
 func HashBytes(bytes []byte) string {
 	// Hash the value using sha3-512
-	hasher := crypto.SHA3_512.New()
+	hasher := sha3.New512()
 	hasher.Write(bytes)
 	sum := hasher.Sum(nil)
-	sha3 := fmt.Sprintf("%x", sum)
 
-	return sha3
+	sha3Str := hex.EncodeToString(sum)
+
+	return sha3Str
 }
 
 func HashPassword(pass string) (string, error) {

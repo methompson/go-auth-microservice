@@ -93,7 +93,7 @@ func (ac *AuthController) EditUser(body *EditUserBody, claims *authCrypto.JWTCla
 	// If the user is not an admin, we need to check the user's id against the
 	// token id. A non-admin can only edit their own data. If the token and
 	// body ids don't match, we just return an error.
-	if !claims.Admin && body.Id != claims.Id {
+	if !claims.Admin && body.Id != claims.Subject {
 		return NewUnauthorizedError("Not authorized to perform this action")
 	}
 
@@ -124,7 +124,7 @@ func (ac *AuthController) EditUserPassword(body *EditPasswordBody, claims *authC
 	if !claims.Admin {
 		// We need to check the user's id against the token id. A non-admin can only edit
 		// their own data. If the token and body ids don't match, we just return an error.
-		if body.Id != claims.Id {
+		if body.Id != claims.Subject {
 			return NewUnauthorizedError("Not authorized to perform this action")
 		}
 

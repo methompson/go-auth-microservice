@@ -368,17 +368,6 @@ func (mdbc *MongoDbController) EditUser(userDoc dbController.EditUserDocument) e
 	collection, backCtx, cancel := mdbc.getCollection("users")
 	defer cancel()
 
-	// update := bson.D{
-	// 	{
-	// 		Key: "$set", Value: bson.D{
-	// 			{Key: "username", Value: userDoc.Username},
-	// 			{Key: "enabled", Value: userDoc.Enabled},
-	// 			{Key: "email", Value: userDoc.Email},
-	// 			{Key: "admin", Value: userDoc.Admin},
-	// 		},
-	// 	},
-	// }
-
 	values := bson.D{}
 
 	if userDoc.Username != nil {
@@ -412,7 +401,6 @@ func (mdbc *MongoDbController) EditUser(userDoc dbController.EditUserDocument) e
 
 	if mdbErr != nil {
 		err := mdbErr.Error()
-		print("Edit User Error: " + err + "\n")
 
 		if strings.Contains(err, "duplicate key error") {
 			msg := "Duplicate user."
@@ -428,12 +416,41 @@ func (mdbc *MongoDbController) EditUser(userDoc dbController.EditUserDocument) e
 		return dbController.NewDBError(mdbErr.Error())
 	}
 
-	print("Things went fine\n")
-
 	return nil
 }
 
 func (mdbc *MongoDbController) EditUserPassword(userId string, passwordHash string) error {
+	id, idErr := primitive.ObjectIDFromHex(userId)
+	if idErr != nil {
+		return dbController.NewInvalidInputError("Invalid User ID")
+	}
+
+	// values :=
+	filter := bson.D{{Key: "_id", Value: id}}
+
+	update := bson.D{
+		{
+			Key: "$set", Value: bson.D{
+				{Key: "passwordHash", Value: passwordHash},
+			},
+		},
+	}
+
+	collection, backCtx, cancel := mdbc.getCollection("users")
+	defer cancel()
+
+	result, mdbErr := collection.UpdateOne(backCtx, filter, update)
+
+	if result.MatchedCount == 0 {
+		return dbController.NewInvalidInputError("Id did not match any users")
+	}
+
+	if mdbErr != nil {
+		print("Edit User Error: " + mdbErr.Error() + "\n")
+
+		return dbController.NewDBError(mdbErr.Error())
+	}
+
 	return nil
 }
 

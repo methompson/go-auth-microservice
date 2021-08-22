@@ -474,7 +474,9 @@ func Test_EditUser(t *testing.T) {
 		editUserErr := ac.EditUser(&authServer.EditUserBody{
 			Id: "1",
 		}, &authCrypto.JWTClaims{
-			Id:    "2",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "2",
+			},
 			Admin: true,
 		}, ctx)
 
@@ -496,7 +498,9 @@ func Test_EditUser(t *testing.T) {
 		editUserErr := ac.EditUser(&authServer.EditUserBody{
 			Id: "1",
 		}, &authCrypto.JWTClaims{
-			Id:    "1",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "1",
+			},
 			Admin: false,
 		}, ctx)
 
@@ -518,7 +522,9 @@ func Test_EditUser(t *testing.T) {
 		editUserErr := ac.EditUser(&authServer.EditUserBody{
 			Id: "1",
 		}, &authCrypto.JWTClaims{
-			Id:    "2",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "2",
+			},
 			Admin: false,
 		}, ctx)
 
@@ -560,7 +566,9 @@ func Test_EditUser(t *testing.T) {
 		editUserErr := ac.EditUser(&authServer.EditUserBody{
 			Id: "1",
 		}, &authCrypto.JWTClaims{
-			Id:    "2",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "2",
+			},
 			Admin: true,
 		}, ctx)
 
@@ -610,7 +618,9 @@ func Test_EditUserPassword(t *testing.T) {
 			Id:          "1",
 			OldPassword: password,
 		}, &authCrypto.JWTClaims{
-			Id: "1",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "1",
+			},
 		}, ctx)
 
 		if editPassErr != nil {
@@ -633,7 +643,9 @@ func Test_EditUserPassword(t *testing.T) {
 		editPassErr := ac.EditUserPassword(&authServer.EditPasswordBody{
 			Id: "1",
 		}, &authCrypto.JWTClaims{
-			Id: "1",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "1",
+			},
 		}, ctx)
 
 		if editPassErr == nil {
@@ -686,7 +698,9 @@ func Test_EditUserPassword(t *testing.T) {
 			Id:          "1",
 			OldPassword: password,
 		}, &authCrypto.JWTClaims{
-			Id: "1",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "1",
+			},
 		}, ctx)
 
 		if editPassErr != nil {
@@ -707,7 +721,9 @@ func Test_EditUserPassword(t *testing.T) {
 		editPassErr := ac.EditUserPassword(&authServer.EditPasswordBody{
 			Id: "1",
 		}, &authCrypto.JWTClaims{
-			Id:    "2",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "2",
+			},
 			Admin: true,
 		}, ctx)
 
@@ -736,7 +752,9 @@ func Test_EditUserPassword(t *testing.T) {
 			Id:          "1",
 			OldPassword: password,
 		}, &authCrypto.JWTClaims{
-			Id:    "1",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "1",
+			},
 			Admin: false,
 		}, ctx)
 
@@ -758,7 +776,9 @@ func Test_EditUserPassword(t *testing.T) {
 		editPassErr := ac.EditUserPassword(&authServer.EditPasswordBody{
 			Id: "1",
 		}, &authCrypto.JWTClaims{
-			Id:    "2",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "2",
+			},
 			Admin: false,
 		}, ctx)
 
@@ -802,7 +822,9 @@ func Test_EditUserPassword(t *testing.T) {
 		editPassErr := ac.EditUserPassword(&authServer.EditPasswordBody{
 			Id: "1",
 		}, &authCrypto.JWTClaims{
-			Id:    "2",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "2",
+			},
 			Admin: true,
 		}, ctx)
 
@@ -848,7 +870,9 @@ func Test_EditUserPassword(t *testing.T) {
 		editPassErr := ac.EditUserPassword(&authServer.EditPasswordBody{
 			Id: "1",
 		}, &authCrypto.JWTClaims{
-			Id: "1",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "1",
+			},
 		}, ctx)
 
 		if editPassErr == nil {
@@ -893,7 +917,9 @@ func Test_EditUserPassword(t *testing.T) {
 		editPassErr := ac.EditUserPassword(&authServer.EditPasswordBody{
 			Id: "1",
 		}, &authCrypto.JWTClaims{
-			Id: "1",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "1",
+			},
 		}, ctx)
 
 		if editPassErr == nil {
@@ -942,7 +968,9 @@ func Test_EditUserPassword(t *testing.T) {
 			Id:          "1",
 			OldPassword: "bad test",
 		}, &authCrypto.JWTClaims{
-			Id: "1",
+			StandardClaims: jwt.StandardClaims{
+				Subject: "1",
+			},
 		}, ctx)
 
 		if editPassErr == nil {
