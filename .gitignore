@@ -22,6 +22,7 @@
 
 # Compiled Binary for the name of the project
 bin/
+auth-microservice.tar
 
 # Test files
 testFiles

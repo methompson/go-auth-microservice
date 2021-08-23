@@ -1,1 +1,1 @@
-docker stop auth-microserver
+docker stop auth-microservice

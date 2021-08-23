@@ -4,8 +4,8 @@ FROM alpine:3.14
 RUN mkdir -p /srv/auth
 WORKDIR /srv/auth
 
-COPY bin/auth-microserver ./auth-microserver
+COPY bin/auth-microservice ./auth-microservice
 COPY keys ./keys
 COPY .env .
 
-CMD ["./auth-microserver"]
+CMD ["./auth-microservice"]
