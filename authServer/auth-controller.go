@@ -157,7 +157,9 @@ func (ac *AuthController) EditUserPassword(body *EditPasswordBody, claims *authC
 // a query of the list of hashed nonces in the database to determine if the combination
 // of hashed nonce and remote address exists.
 func (ac *AuthController) CheckNonceHash(hashedNonce string, ctx *gin.Context) error {
-	remoteAddress := ctx.Request.RemoteAddr
+	// remoteAddress := authUtils.GetRemoteAddressIP(ctx.Request.RemoteAddr)
+	remoteAddress := authUtils.GetRemoteAddressIP(ctx.ClientIP())
+
 	_, nonceDocErr := (*ac.DBController).GetNonce(hashedNonce, remoteAddress, authUtils.GetNonceExpirationTime())
 
 	if nonceDocErr != nil {
@@ -186,7 +188,14 @@ func (ac *AuthController) CheckNonceValidity(nonce string, ctx *gin.Context) err
 }
 
 func (ac *AuthController) GenerateNonce(ctx *gin.Context) (string, error) {
-	remoteAddress := ctx.Request.RemoteAddr
+	// remoteAddress := authUtils.GetRemoteAddressIP(ctx.Request.RemoteAddr)
+	remoteAddress := authUtils.GetRemoteAddressIP(ctx.ClientIP())
+	// clientIP := ctx.ClientIP()
+	// fmt.Println("Remote Address (GenerateNonce): " + remoteAddress)
+	// fmt.Println("Client IP (GenerateNonce): " + clientIP)
+
+	// xfwd := ctx.Request.Header.Get("x-forwarded-for")
+	// fmt.Println("X Forwarded For: " + xfwd)
 
 	// Generate a random string and its source bytes
 	nonce, bytes := GenerateRandomString(64)

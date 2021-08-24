@@ -68,6 +68,7 @@ func StartServer() {
 
 func addLogging(as *AuthServer) {
 	as.GinEngine.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		// address := authUtils.GetRemoteAddressIP(param.Request.RemoteAddr)
 		requestData := authUtils.RequestLogData{
 			Timestamp:    param.TimeStamp,
 			Type:         "request",

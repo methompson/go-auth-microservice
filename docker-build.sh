@@ -1,4 +1,4 @@
-cp ./keys ./docker/keys
+cp -R ./keys ./docker/keys
 
 (
   cd docker && \

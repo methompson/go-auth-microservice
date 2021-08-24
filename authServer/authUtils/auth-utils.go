@@ -2,11 +2,13 @@ package authUtils
 
 import (
 	"encoding/hex"
+	"net"
 	"os"
 	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/sha3"
+
 	"methompson.com/auth-microservice/authServer/constants"
 )
 
@@ -50,4 +52,14 @@ func HashPassword(pass string) (string, error) {
 func CheckPasswordHash(password string, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
+}
+
+func GetRemoteAddressIP(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
+
+	if err != nil {
+		return remoteAddr
+	}
+
+	return host
 }
