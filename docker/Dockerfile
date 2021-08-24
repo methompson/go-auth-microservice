@@ -6,6 +6,5 @@ WORKDIR /srv/auth
 
 COPY bin/auth-microservice ./auth-microservice
 COPY keys ./keys
-COPY .env .
 
 CMD ["./auth-microservice"]

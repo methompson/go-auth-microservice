@@ -1,1 +1,0 @@
-(cd docker && docker run --rm -dp 80:80 --name auth-microservice auth-microservice)

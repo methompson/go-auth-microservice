@@ -27,11 +27,7 @@ type AuthServer struct {
 }
 
 func StartServer() {
-	loadEnvErr := LoadEnvVariables()
-
-	if loadEnvErr != nil {
-		log.Fatal(loadEnvErr.Error())
-	}
+	LoadEnvVariables()
 
 	checkEnvErr := CheckEnvVariables()
 
@@ -41,7 +37,7 @@ func StartServer() {
 
 	// We run this prior to creating a server. Any gin engine created prior
 	// to running SetMode won't include this configuration.
-	if os.Getenv("GIN_MODE") == "release" {
+	if !DebugMode() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
@@ -49,7 +45,7 @@ func StartServer() {
 
 	// We run this after creating a server, but before setting routes. Any
 	// route set BEFORE this won't actually use this.
-	if os.Getenv("GIN_MODE") == "release" {
+	if !DebugMode() {
 		errs := configureReleaseLogging(&authServer)
 
 		if len(errs) > 0 {

@@ -1,7 +1,6 @@
 package authServer
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -11,14 +10,14 @@ import (
 	"methompson.com/auth-microservice/authServer/constants"
 )
 
-func LoadEnvVariables() error {
-	err := godotenv.Load()
-	if err != nil {
-		msg := fmt.Sprint("Error loading .env file: ", err)
-		return NewEnvironmentVariableError(msg)
-	}
+func LoadEnvVariables() {
+	godotenv.Load()
+	// if err != nil {
+	// 	msg := fmt.Sprint("Error loading .env file: ", err)
+	// 	return NewEnvironmentVariableError(msg)
+	// }
 
-	return nil
+	// return nil
 }
 
 func CheckEnvVariables() error {

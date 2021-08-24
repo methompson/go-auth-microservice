@@ -1,5 +1,4 @@
 cp ./keys ./docker/keys
-cp ./env ./docker/eng
 
 (
   cd docker && \
